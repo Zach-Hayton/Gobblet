@@ -30,15 +30,14 @@ self.onmessage = async function(e) {
   //     get_best_move_from_json(json_state, time_limit)
   //
   // Here is an example command (adjust function names as needed):
-  const command = `
+ const command = `
 import json
-# Convert JSON state to a Python dictionary
 state = json.loads("""${JSON.stringify(state)}""")
-# Create an engine instance from the state; assume your engine module has a function for that.
 engine = create_engine_from_state(state)
-move = iterative_deepening(engine, ${timeLimit})
+move = get_move(engine, ${timeLimit})
 json.dumps(move)
-  `;
+`;
+
   
   try {
     let resultJson = await pyodide.runPythonAsync(command);
