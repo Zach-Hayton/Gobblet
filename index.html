@@ -2,64 +2,99 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Gobblet (Enhanced)</title>
+  <title>Hayton Gobblet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Google Fonts: Roboto -->
+
+  <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+
   <style>
     /* Global Styles */
-    body {
+    html, body {
       margin: 0;
       padding: 0;
+      height: 100%;
       font-family: 'Roboto', sans-serif;
-      background: linear-gradient(135deg, #74ABE2, #5563DE);
-      color: #333;
+      background: url("assets/images/Gobblet-backround.png") no-repeat center center fixed;
+      background-size: cover;
     }
-    h1, h2 {
-      text-align: center;
-      margin-top: 0.5em;
-      color: #fff;
-    }
-    /* Container for the game content */
+    
     .container {
-      max-width: 900px;
+      max-width: 1200px;
       margin: 2em auto;
       padding: 2em;
-      background: rgba(255, 255, 255, 0.95);
+      background: rgba(255,255,255,0.95);
       border-radius: 8px;
       box-shadow: 0 10px 20px rgba(0,0,0,0.2);
     }
-    .status {
+    
+    h1 {
       text-align: center;
-      font-weight: 500;
-      margin: 1em 0;
+      margin: 0;
+      color: #333;
+    }
+    
+    /* Layout: three columns (left supply, board, right supply) */
+    .game-layout {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+      margin-top: 1em;
+    }
+    
+    .supply-container {
+      width: 150px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .supply-container h2 {
+      margin-bottom: 10px;
       font-size: 1.1em;
       color: #333;
     }
-    /* Supply styling */
+    
+    /* Supply styling: display pieces in a vertical list */
     .supply {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
       gap: 10px;
-      justify-content: center;
-      margin: 1em 0;
+      align-items: center;
     }
+    
     .supply .piece {
       cursor: pointer;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
+    
     .supply .piece:hover {
       transform: scale(1.1);
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
+    
+    .board-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .board-container h2 {
+      margin-bottom: 10px;
+      font-size: 1.2em;
+      color: #333;
+    }
+    
     /* Board styling (4x4 grid) */
     .board {
       display: grid;
       grid-template-columns: repeat(4, 90px);
       grid-gap: 10px;
       justify-content: center;
-      margin: 1em 0;
     }
+    
     .square {
       width: 90px;
       height: 90px;
@@ -71,10 +106,13 @@
       justify-content: center;
       position: relative;
       transition: background 0.2s ease;
+      cursor: pointer;
     }
+    
     .square:hover {
       background: #f9f9f9;
     }
+    
     /* Piece styling */
     .piece {
       border-radius: 50%;
@@ -85,7 +123,8 @@
       font-weight: bold;
       position: relative;
     }
-    /* Size classes for pieces */
+    
+    /* Piece size classes */
     .size1 {
       width: 35px;
       height: 35px;
@@ -106,20 +145,22 @@
       height: 65px;
       font-size: 1.1em;
     }
-    /* Player colors */
+    
+    /* Color scheme: Player 1 is red, Player 2 is blue */
     .player1 {
-      background: #5563DE;
+      background: #e74c3c;
     }
     .player2 {
-      background: #74ABE2;
+      background: #3498db;
     }
-    /* Reset button styling */
+    
     .reset-container {
       text-align: center;
       margin-top: 1.5em;
     }
+    
     button {
-      background: #5563DE;
+      background: #3498db;
       color: #fff;
       border: none;
       padding: 0.7em 1.2em;
@@ -128,35 +169,70 @@
       cursor: pointer;
       transition: background 0.2s ease;
     }
+    
     button:hover {
-      background: #4450b3;
+      background: #2980b9;
+    }
+    
+    .music-controls {
+      text-align: center;
+      margin: 1em 0;
+    }
+    
+    .music-btn {
+      background: #3498db;
+      margin: 0 5px;
+    }
+    
+    .music-btn:hover {
+      background: #2980b9;
     }
   </style>
 </head>
 <body>
-  <h1>Gobblet (Enhanced)</h1>
+  <h1>Hayton Gobblet</h1>
   <div class="container">
+    <!-- Status display -->
     <div id="status" class="status">Loading...</div>
     
-    <!-- Player 1's Supply -->
-    <h2>Player 1 Pieces</h2>
-    <div id="player1-supply" class="supply"></div>
-    
-    <!-- Player 2's Supply -->
-    <h2>Player 2 Pieces</h2>
-    <div id="player2-supply" class="supply"></div>
-    
-    <!-- Game Board (4x4) -->
-    <h2>The Board</h2>
-    <div id="board" class="board"></div>
+    <!-- Main game layout: supplies on left/right, board in center -->
+    <div class="game-layout">
+      <!-- Left Supply: Player 1 (Red) -->
+      <div class="supply-container">
+        <h2>Player 1</h2>
+        <div id="player1-supply" class="supply"></div>
+      </div>
+      
+      <!-- Board -->
+      <div class="board-container">
+        <h2>The Board</h2>
+        <div id="board" class="board"></div>
+      </div>
+      
+      <!-- Right Supply: Player 2 (Blue) -->
+      <div class="supply-container">
+        <h2>Player 2</h2>
+        <div id="player2-supply" class="supply"></div>
+      </div>
+    </div>
     
     <div class="reset-container">
       <button id="reset-btn">Reset Game</button>
     </div>
+    
+    <div class="music-controls">
+      <button id="play-music-btn" class="music-btn">Play Music</button>
+      <button id="pause-music-btn" class="music-btn">Pause Music</button>
+    </div>
   </div>
-
-  <!-- JavaScript (Game Logic Remains the Same) -->
+  
+  <!-- Background Music -->
+  <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
+  
   <script>
+    /***************************************************************
+     * Gobblet Game Logic (Same as before, with supplies on sides)
+     ***************************************************************/
     let board = [];
     const ROWS = 4;
     const COLS = 4;
@@ -170,7 +246,12 @@
     const player2SupplyEl = document.getElementById('player2-supply');
     const statusEl = document.getElementById('status');
     const resetBtn = document.getElementById('reset-btn');
-
+    
+    // Music controls
+    const bgMusic = document.getElementById('bg-music');
+    const playMusicBtn = document.getElementById('play-music-btn');
+    const pauseMusicBtn = document.getElementById('pause-music-btn');
+    
     function initBoard() {
       board = [];
       for (let r = 0; r < ROWS; r++) {
@@ -180,12 +261,13 @@
         }
       }
     }
-
+    
     function initSupplies() {
       player1Pieces.length = 0;
       player2Pieces.length = 0;
       let idCounter1 = 1;
       let idCounter2 = 1;
+    
       function addPiecesForPlayer(player, size) {
         for (let i = 0; i < 3; i++) {
           let piece = {
@@ -198,12 +280,13 @@
           else player2Pieces.push(piece);
         }
       }
+    
       [1, 2, 3, 4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
       });
     }
-
+    
     function renderBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < ROWS; r++) {
@@ -212,6 +295,7 @@
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
           squareDiv.onclick = () => { handleSquareClick(r, c); };
+    
           let stack = board[r][c];
           if (stack.length > 0) {
             const topPiece = stack[stack.length - 1];
@@ -222,14 +306,16 @@
             pieceDiv.style.transform = 'translate(-50%, -50%)';
             squareDiv.appendChild(pieceDiv);
           }
+    
           boardEl.appendChild(squareDiv);
         }
       }
     }
-
+    
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
+    
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
@@ -237,6 +323,7 @@
           player1SupplyEl.appendChild(div);
         }
       });
+    
       player2Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
@@ -245,13 +332,13 @@
         }
       });
     }
-
+    
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
       return div;
     }
-
+    
     function pickUpFromSupply(piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -268,12 +355,13 @@
       };
       statusEl.textContent = `Player ${currentPlayer} picked up a size${piece.size} piece from supply. Place it on the board.`;
     }
-
+    
     function handleSquareClick(r, c) {
       let stack = board[r][c];
+    
       if (!selectedPiece) {
         if (stack.length === 0) {
-          alert(`No piece here to pick up.`);
+          alert('No piece here to pick up.');
           return;
         }
         const topPiece = stack[stack.length - 1];
@@ -294,10 +382,11 @@
         renderBoard();
         return;
       }
+    
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
-          alert(`Your piece is too small to cover the top piece (size${topPiece.size}).`);
+          alert(`Your piece is too small to cover size${topPiece.size}.`);
           return;
         }
       }
@@ -319,7 +408,7 @@
       currentPlayer = (currentPlayer === 1) ? 2 : 1;
       statusEl.textContent = `Player ${currentPlayer}'s turn.`;
     }
-
+    
     function markPieceUsed(sel) {
       if (sel.player === 1) {
         const p = player1Pieces.find(p => p.id === sel.id);
@@ -329,18 +418,20 @@
         if (p) p.used = true;
       }
     }
-
+    
     function disableAllMoves() {
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const squareDiv = document.getElementById(`square-${r}-${c}`);
-          if (squareDiv) squareDiv.onclick = null;
+          if (squareDiv) {
+            squareDiv.onclick = null;
+          }
         }
       }
       player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
       player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
-
+    
     function checkWin(player) {
       let topGrid = [];
       for (let r = 0; r < ROWS; r++) {
@@ -364,7 +455,7 @@
       if (diag2.every(p => p === player)) return true;
       return false;
     }
-
+    
     function initGame() {
       initBoard();
       initSupplies();
@@ -374,8 +465,16 @@
       selectedPiece = null;
       statusEl.textContent = `Player ${currentPlayer}'s turn.`;
     }
-
+    
     resetBtn.addEventListener('click', initGame);
+    
+    playMusicBtn.addEventListener('click', () => {
+      bgMusic.play();
+    });
+    pauseMusicBtn.addEventListener('click', () => {
+      bgMusic.pause();
+    });
+    
     window.onload = initGame;
   </script>
 </body>
