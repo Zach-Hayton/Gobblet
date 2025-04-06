@@ -174,16 +174,6 @@
     
     // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
-    botWorker.onmessage = function(e) {
-      const { move, error } = e.data;
-      if (error) {
-        alert("Bot error: " + error);
-        return;
-      }
-      if (move) {
-        applyBotMove(move);
-      }
-    };
     
     // Game initialization and rendering functions
     function initBoard() {
