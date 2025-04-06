@@ -173,7 +173,7 @@
     const pauseMusicBtn = document.getElementById('pause-music-btn');
     
     // Create a global bot worker
-    let botWorker = new Worker("botWorker.js");
+    
     
     // Game initialization and rendering functions
     function initBoard() {
@@ -381,6 +381,7 @@
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
+      let botWorker = new Worker("botWorker.js");
       botWorker.postMessage({ state: state, timeLimit: 10 });
       botWorker.onmessage = function(e) {
         const { move, error } = e.data;
