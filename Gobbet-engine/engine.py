@@ -1,5 +1,6 @@
 import copy
 import time
+import random
 
 class GobbletEngine:
     def __init__(self, board, supply1, supply2, current_player):
@@ -11,8 +12,7 @@ class GobbletEngine:
     def generate_moves(self):
         moves = []
         player = self.current_player
-
-        # Moves from supply: try to place each unused piece on every cell if legal.
+        # Moves from supply: for each unused piece, try all board cells
         supply = self.supply1 if player == 1 else self.supply2
         for piece in supply:
             if not piece['used']:
@@ -25,7 +25,6 @@ class GobbletEngine:
                                 'piece': piece,
                                 'to': (r, c)
                             })
-
         # Moves from board: pick up your own top piece and try placing it elsewhere.
         for r in range(len(self.board)):
             for c in range(len(self.board[0])):
@@ -47,7 +46,6 @@ class GobbletEngine:
         return moves
 
     def apply_move(self, move):
-        # Apply a move and return a new engine state.
         new_engine = copy.deepcopy(self)
         if move['type'] == 'supply':
             supply = new_engine.supply1 if move['piece']['player'] == 1 else new_engine.supply2
@@ -67,34 +65,25 @@ class GobbletEngine:
         return new_engine
 
 def get_move(engine, time_limit=10):
-    """
-    Wait for 'time_limit' seconds and then return the first legal move.
-    """
+    # Wait for 'time_limit' seconds to simulate thinking.
     deadline = time.time() + time_limit
     while time.time() < deadline:
-        time.sleep(0.1)  # simulate thinking time
+        time.sleep(0.1)
     moves = engine.generate_moves()
     if moves:
-        return moves[0]
+        return random.choice(moves)
     return None
 
 def create_engine_from_state(state):
-    """
-    Convert a JSON-decoded state (dict) to a GobbletEngine instance.
-    Expects state with keys: 'board', 'supply1', 'supply2', 'currentPlayer'
-    """
     board = state['board']
     supply1 = state['supply1']
     supply2 = state['supply2']
     current_player = state['currentPlayer']
     return GobbletEngine(board, supply1, supply2, current_player)
 
-# For testing from the command line:
 if __name__ == '__main__':
-    # Create a 4x4 board: each cell starts as an empty list.
+    # For testing: create an empty 4x4 board.
     board = [[[] for _ in range(4)] for _ in range(4)]
-
-    # Helper to create a supply of pieces for a player:
     def create_supply(player):
         supply = []
         counter = 1
@@ -108,7 +97,6 @@ if __name__ == '__main__':
                 })
                 counter += 1
         return supply
-
     supply1 = create_supply(1)
     supply2 = create_supply(2)
     engine = GobbletEngine(board, supply1, supply2, 1)
