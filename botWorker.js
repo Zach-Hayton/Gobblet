@@ -1,5 +1,5 @@
 // botWorker.js
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js");
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.23.1/full/pyodide.js");
 
 let pyodideReady = false;
 let pyodide = null;
