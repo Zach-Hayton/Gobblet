@@ -9,29 +9,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   
   <style>
-    /* Global styles for full-page background */
+    /* Make sure the body covers the full viewport and shows the background image. */
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       font-family: 'Roboto', sans-serif;
-      /* Set black background with the background image scaled using 'contain' so the whole image is visible */
-      background-color: black;
+      background-color: black; /* Fallback/side margins. */
       background-image: url("assets/images/Gobblet-backround.png");
       background-repeat: no-repeat;
       background-position: center center;
-      background-size: contain;
+      background-size: contain; /* Ensures entire image is shown, with black bars if needed. */
     }
-    
-    /* Title styling */
+
+    /* Title at the top */
     h1 {
       text-align: center;
-      margin: 1em 0;
+      margin: 1em 0 0.5em 0;
       color: #fff;
     }
-    
-    /* Remove the white container by not wrapping everything in a box */
-    /* Instead, use a flex container to lay out the game elements directly on the background */
+
+    /* Main layout: left supply, center board, right supply */
     .game-layout {
       display: flex;
       justify-content: center;
@@ -39,60 +37,52 @@
       gap: 20px;
       max-width: 1200px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 0 20px 20px; /* Some spacing around */
     }
-    
-    /* Supply container styling for left/right columns */
+
+    /* Supply columns */
     .supply-container {
       width: 150px;
       display: flex;
       flex-direction: column;
       align-items: center;
     }
-    
     .supply-container h2 {
       margin-bottom: 10px;
       font-size: 1.1em;
       color: #fff;
     }
-    
-    /* Supply pieces arranged vertically */
     .supply {
       display: flex;
       flex-direction: column;
       gap: 10px;
       align-items: center;
     }
-    
     .supply .piece {
       cursor: pointer;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    
     .supply .piece:hover {
       transform: scale(1.1);
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-    
-    /* Board container with a semi-transparent background so the background image shows through */
+
+    /* Board container: now with NO background box behind it */
     .board-container {
       flex: 1;
-      padding: 20px;
-      background: rgba(255, 255, 255, 0.8);
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
       display: flex;
       flex-direction: column;
       align-items: center;
+      margin-top: 20px;
     }
-    
     .board-container h2 {
       margin-bottom: 10px;
       font-size: 1.2em;
-      color: #333;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
     }
-    
-    /* Board grid styling (4x4) */
+
+    /* The 4x4 board grid */
     .board {
       display: grid;
       grid-template-columns: repeat(4, 90px);
@@ -100,25 +90,25 @@
       justify-content: center;
       margin-bottom: 20px;
     }
-    
+
+    /* Each square: mostly transparent so the background is visible */
     .square {
       width: 90px;
       height: 90px;
-      background: #fff;
-      border: 2px solid #ccc;
+      background: rgba(255, 255, 255, 0.2); /* Adjust for more or less transparency */
+      border: 2px solid rgba(255, 255, 255, 0.3); /* Subtle border */
       border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
-      transition: background 0.2s ease;
       cursor: pointer;
+      transition: background 0.2s ease;
     }
-    
     .square:hover {
-      background: #f9f9f9;
+      background: rgba(255, 255, 255, 0.3);
     }
-    
+
     /* Piece styling */
     .piece {
       border-radius: 50%;
@@ -129,43 +119,21 @@
       font-weight: bold;
       position: relative;
     }
-    
-    /* Different sizes for pieces */
-    .size1 {
-      width: 35px;
-      height: 35px;
-      font-size: 0.75em;
-    }
-    .size2 {
-      width: 45px;
-      height: 45px;
-      font-size: 0.85em;
-    }
-    .size3 {
-      width: 55px;
-      height: 55px;
-      font-size: 1em;
-    }
-    .size4 {
-      width: 65px;
-      height: 65px;
-      font-size: 1.1em;
-    }
-    
-    /* Color scheme: Player 1 is red, Player 2 is blue */
-    .player1 {
-      background: #e74c3c;
-    }
-    .player2 {
-      background: #3498db;
-    }
-    
-    /* Reset and music control styling */
+    /* Sizes */
+    .size1 { width: 35px; height: 35px; font-size: 0.75em; }
+    .size2 { width: 45px; height: 45px; font-size: 0.85em; }
+    .size3 { width: 55px; height: 55px; font-size: 1em; }
+    .size4 { width: 65px; height: 65px; font-size: 1.1em; }
+
+    /* Player colors (red & blue) */
+    .player1 { background: #e74c3c; }
+    .player2 { background: #3498db; }
+
+    /* Reset & Music Buttons */
     .reset-container, .music-controls {
       text-align: center;
-      margin-top: 20px;
+      margin: 10px 0;
     }
-    
     button {
       background: #3498db;
       color: #fff;
@@ -177,7 +145,6 @@
       transition: background 0.2s ease;
       margin: 5px;
     }
-    
     button:hover {
       background: #2980b9;
     }
@@ -185,16 +152,15 @@
 </head>
 <body>
   <h1>Hayton Gobblet</h1>
-  
-  <!-- Game Layout without a white container overlaying the full background -->
+
   <div class="game-layout">
-    <!-- Left Supply (Player 1) -->
+    <!-- Player 1 Supply (Left) -->
     <div class="supply-container">
       <h2>Player 1</h2>
       <div id="player1-supply" class="supply"></div>
     </div>
-    
-    <!-- Board Container with semi-transparent background -->
+
+    <!-- Board in Center (No big white box) -->
     <div class="board-container">
       <h2>The Board</h2>
       <div id="board" class="board"></div>
@@ -202,23 +168,23 @@
         <button id="reset-btn">Reset Game</button>
       </div>
     </div>
-    
-    <!-- Right Supply (Player 2) -->
+
+    <!-- Player 2 Supply (Right) -->
     <div class="supply-container">
       <h2>Player 2</h2>
       <div id="player2-supply" class="supply"></div>
     </div>
   </div>
-  
+
   <!-- Music Controls -->
   <div class="music-controls">
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
   </div>
-  
+
   <!-- Background Music -->
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
-  
+
   <script>
     /***************************************************************
      * Gobblet Game Logic
@@ -230,7 +196,7 @@
     const player2Pieces = [];
     let currentPlayer = 1;
     let selectedPiece = null;
-    
+
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
     const player2SupplyEl = document.getElementById('player2-supply');
@@ -240,7 +206,8 @@
     const bgMusic = document.getElementById('bg-music');
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
-    
+
+    // Initialize the board as a 2D array of stacks
     function initBoard() {
       board = [];
       for (let r = 0; r < ROWS; r++) {
@@ -250,13 +217,14 @@
         }
       }
     }
-    
+
+    // Create 12 pieces per player (3 of each size)
     function initSupplies() {
       player1Pieces.length = 0;
       player2Pieces.length = 0;
       let idCounter1 = 1;
       let idCounter2 = 1;
-    
+
       function addPiecesForPlayer(player, size) {
         for (let i = 0; i < 3; i++) {
           let piece = {
@@ -265,17 +233,21 @@
             size,
             used: false
           };
-          if (player === 1) player1Pieces.push(piece);
-          else player2Pieces.push(piece);
+          if (player === 1) {
+            player1Pieces.push(piece);
+          } else {
+            player2Pieces.push(piece);
+          }
         }
       }
-    
+
       [1, 2, 3, 4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
       });
     }
-    
+
+    // Render the 4x4 board
     function renderBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < ROWS; r++) {
@@ -283,8 +255,8 @@
           const squareDiv = document.createElement('div');
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
-          squareDiv.onclick = () => { handleSquareClick(r, c); };
-    
+          squareDiv.onclick = () => handleSquareClick(r, c);
+
           let stack = board[r][c];
           if (stack.length > 0) {
             const topPiece = stack[stack.length - 1];
@@ -295,46 +267,49 @@
             pieceDiv.style.transform = 'translate(-50%, -50%)';
             squareDiv.appendChild(pieceDiv);
           }
-    
+
           boardEl.appendChild(squareDiv);
         }
       }
     }
-    
+
+    // Render the supplies (vertical stacks on left & right)
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
-    
+
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          div.onclick = () => { pickUpFromSupply(piece); };
+          div.onclick = () => pickUpFromSupply(piece);
           player1SupplyEl.appendChild(div);
         }
       });
-    
+
       player2Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          div.onclick = () => { pickUpFromSupply(piece); };
+          div.onclick = () => pickUpFromSupply(piece);
           player2SupplyEl.appendChild(div);
         }
       });
     }
-    
+
+    // Create a DOM element for a piece
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
       return div;
     }
-    
+
+    // Pick up a piece from the supply
     function pickUpFromSupply(piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
         return;
       }
       if (selectedPiece) {
-        alert(`You already have a piece in hand. Place it first or reselect.`);
+        alert('You already have a piece in hand. Place it first or reselect.');
       }
       selectedPiece = {
         id: piece.id,
@@ -342,12 +317,13 @@
         size: piece.size,
         from: 'supply'
       };
-      // Optional: update a status message if desired
     }
-    
+
+    // Click on a board square
     function handleSquareClick(r, c) {
       let stack = board[r][c];
-    
+
+      // If no piece is selected, try to pick up the top piece (if it belongs to the current player)
       if (!selectedPiece) {
         if (stack.length === 0) {
           alert('No piece here to pick up.');
@@ -358,6 +334,7 @@
           alert(`Top piece belongs to Player ${topPiece.player}, not you!`);
           return;
         }
+        // Remove it from the stack
         stack.pop();
         selectedPiece = {
           id: topPiece.id || null,
@@ -370,32 +347,40 @@
         renderBoard();
         return;
       }
-    
+
+      // If a piece is selected, attempt to place it
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
-          alert(`Your piece is too small to cover size${topPiece.size}.`);
+          alert(`Your piece is too small to cover size ${topPiece.size}.`);
           return;
         }
       }
+      // Place the piece
       stack.push({
         player: selectedPiece.player,
         size: selectedPiece.size,
         id: selectedPiece.id
       });
-      if (selectedPiece.from === 'supply') markPieceUsed(selectedPiece);
+      if (selectedPiece.from === 'supply') {
+        markPieceUsed(selectedPiece);
+      }
       renderBoard();
       renderSupplies();
+
+      // Check for win
       if (checkWin(selectedPiece.player)) {
         alert(`Player ${selectedPiece.player} wins!`);
         disableAllMoves();
         selectedPiece = null;
         return;
       }
+
+      // Switch turns
       selectedPiece = null;
-      currentPlayer = (currentPlayer === 1) ? 2 : 1;
+      currentPlayer = currentPlayer === 1 ? 2 : 1;
     }
-    
+
     function markPieceUsed(sel) {
       if (sel.player === 1) {
         const p = player1Pieces.find(p => p.id === sel.id);
@@ -405,44 +390,50 @@
         if (p) p.used = true;
       }
     }
-    
+
     function disableAllMoves() {
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           const squareDiv = document.getElementById(`square-${r}-${c}`);
-          if (squareDiv) {
-            squareDiv.onclick = null;
-          }
+          if (squareDiv) squareDiv.onclick = null;
         }
       }
       player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
       player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
-    
+
     function checkWin(player) {
+      // Build a quick grid of top pieces
       let topGrid = [];
       for (let r = 0; r < ROWS; r++) {
         topGrid[r] = [];
         for (let c = 0; c < COLS; c++) {
           let stack = board[r][c];
-          topGrid[r][c] = (stack.length > 0) ? stack[stack.length - 1].player : 0;
+          topGrid[r][c] = stack.length > 0 ? stack[stack.length - 1].player : 0;
         }
       }
+      // Check rows
       for (let r = 0; r < ROWS; r++) {
         if (topGrid[r].every(p => p === player)) return true;
       }
+      // Check cols
       for (let c = 0; c < COLS; c++) {
-        let colVals = [];
-        for (let r = 0; r < ROWS; r++) colVals.push(topGrid[r][c]);
+        const colVals = [];
+        for (let r = 0; r < ROWS; r++) {
+          colVals.push(topGrid[r][c]);
+        }
         if (colVals.every(p => p === player)) return true;
       }
+      // Check diag1
       let diag1 = [topGrid[0][0], topGrid[1][1], topGrid[2][2], topGrid[3][3]];
       if (diag1.every(p => p === player)) return true;
+      // Check diag2
       let diag2 = [topGrid[0][3], topGrid[1][2], topGrid[2][1], topGrid[3][0]];
       if (diag2.every(p => p === player)) return true;
+
       return false;
     }
-    
+
     function initGame() {
       initBoard();
       initSupplies();
@@ -451,16 +442,15 @@
       currentPlayer = 1;
       selectedPiece = null;
     }
-    
+
+    // Reset game
     resetBtn.addEventListener('click', initGame);
-    
-    playMusicBtn.addEventListener('click', () => {
-      bgMusic.play();
-    });
-    pauseMusicBtn.addEventListener('click', () => {
-      bgMusic.pause();
-    });
-    
+
+    // Music controls
+    playMusicBtn.addEventListener('click', () => bgMusic.play());
+    pauseMusicBtn.addEventListener('click', () => bgMusic.pause());
+
+    // Initialize on load
     window.onload = initGame;
   </script>
 </body>
