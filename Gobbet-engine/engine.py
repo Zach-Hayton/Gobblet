@@ -53,6 +53,20 @@ class GobbletEngine:
                                     'to': (r2, c2)
                                 })
         return moves
+    def create_engine_from_state(state):
+        """
+        Convert a JSON-decoded state (a dict) into a GobbletEngine instance.
+        Expecting state to have keys:
+          - 'board': a 2D list of stacks (each stack is a list of pieces)
+          - 'supply1': list of pieces for player 1
+          - 'supply2': list of pieces for player 2
+          - 'currentPlayer': integer (1 or 2)
+        """
+        board = state['board']
+        supply1 = state['supply1']
+        supply2 = state['supply2']
+        current_player = state['currentPlayer']
+        return GobbletEngine(board, supply1, supply2, current_player)
 
     def apply_move(self, move):
         # Make a deep copy of the current state and apply the move.
