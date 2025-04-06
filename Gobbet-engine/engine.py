@@ -105,5 +105,3 @@ if __name__ == '__main__':
     supply1 = create_supply(1)
     supply2 = create_supply(2)
     engine = GobbletEngine(board, supply1, supply2, 1)
-    move = get_move(engine, 10)
-    print("Move chosen:", move)
