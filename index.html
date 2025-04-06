@@ -406,28 +406,30 @@
     }
     
     function applyBotMove(move) {
-      if (move.type === "supply") {
-        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
-        const p = supply.find(p => p.id === move.piece.id);
-        if (p) p.used = true;
-      } else if (move.type === "board") {
-        let stack = board[move.from.row][move.from.col];
-        if (stack.length > 0) stack.pop();
-      }
-      board[move.to.row][move.to.col].push({
-        player: move.piece.player,
-        size: move.piece.size,
-        id: move.piece.id
-      });
-      renderBoard();
-      renderSupplies();
-      if (checkWin(move.piece.player)) {
-        alert(`Player ${move.piece.player} wins!`);
-        disableAllMoves();
-        return;
-      }
-      currentPlayer = 1;
-    }
+  if (move.type === "supply") {
+    const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+    const p = supply.find(p => p.id === move.piece.id);
+    if (p) p.used = true;
+  } else if (move.type === "board") {
+    // Use array indices since Python returns coordinates as arrays.
+    let stack = board[move.from[0]][move.from[1]];
+    if (stack.length > 0) stack.pop();
+  }
+  // Access move.to as an array.
+  board[move.to[0]][move.to[1]].push({
+    player: move.piece.player,
+    size: move.piece.size,
+    id: move.piece.id
+  });
+  renderBoard();
+  renderSupplies();
+  if (checkWin(move.piece.player)) {
+    alert(`Player ${move.piece.player} wins!`);
+    disableAllMoves();
+    return;
+  }
+  currentPlayer = 1;
+}
     
     function initGame() {
       initBoard();
