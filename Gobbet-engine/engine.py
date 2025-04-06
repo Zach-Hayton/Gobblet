@@ -12,7 +12,7 @@ class GobbletEngine:
     def generate_moves(self):
         moves = []
         player = self.current_player
-        # Moves from supply: for each unused piece, try all board cells
+        # Moves from supply: for each unused piece, try every board cell.
         supply = self.supply1 if player == 1 else self.supply2
         for piece in supply:
             if not piece['used']:
@@ -25,7 +25,7 @@ class GobbletEngine:
                                 'piece': piece,
                                 'to': (r, c)
                             })
-        # Moves from board: pick up your own top piece and try placing it elsewhere.
+        # Moves from board: pick up your own top piece and try moving it.
         for r in range(len(self.board)):
             for c in range(len(self.board[0])):
                 cell = self.board[r][c]
@@ -66,12 +66,17 @@ class GobbletEngine:
 
 def get_move(engine, time_limit=10):
     # Wait for 'time_limit' seconds to simulate thinking.
+    print("get_move called. Waiting for", time_limit, "seconds...")
     deadline = time.time() + time_limit
     while time.time() < deadline:
         time.sleep(0.1)
     moves = engine.generate_moves()
+    print("Legal moves found:", moves)
     if moves:
-        return random.choice(moves)
+        chosen_move = moves[0]
+        print("Returning move:", chosen_move)
+        return chosen_move
+    print("No legal moves found.")
     return None
 
 def create_engine_from_state(state):
@@ -82,7 +87,7 @@ def create_engine_from_state(state):
     return GobbletEngine(board, supply1, supply2, current_player)
 
 if __name__ == '__main__':
-    # For testing: create an empty 4x4 board.
+    # For testing from command line.
     board = [[[] for _ in range(4)] for _ in range(4)]
     def create_supply(player):
         supply = []
