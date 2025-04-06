@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gobblet (Authentic-ish)</title>
+  <style>
+    body {
+      margin: 0; 
+      padding: 0; 
+      font-family: sans-serif;
+      background: #f0f0f0;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-top: 1em;
+    }
+    .container {
+      max-width: 800px;
+      margin: 1em auto;
+      padding: 1em;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    /* Board styling (4x4 grid) */
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, 80px);
+      grid-gap: 8px;
+      justify-content: center;
+      margin: 1em auto;
+    }
+    /* Each square on the board */
+    .square {
+      width: 80px;
+      height: 80px;
+      background: #fff;
+      border: 2px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+    }
+    /* The piece “circle” displayed in a square or supply */
+    .piece {
+      width: 60px;
+      height: 60px;
+      background: darkgray; /* Player 1 default color */
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: bold;
+      font-size: 1em;
+      position: relative;
+    }
+    /* Sizing differences (smallest to biggest) */
+    .size1 { width: 30px; height: 30px; font-size: 0.8em; }
+    .size2 { width: 40px; height: 40px; font-size: 0.9em; }
+    .size3 { width: 50px; height: 50px; font-size: 1em; }
+    .size4 { width: 60px; height: 60px; font-size: 1.1em; }
+    /* Player colors */
+    .player1 { background: #555; /* dark gray */ }
+    .player2 { background: #aaa; /* light gray */ }
+    .status {
+      text-align: center;
+      font-weight: bold;
+      margin: 0.5em 0;
+    }
+    /* Supply styling: place each player's supply in a row of circles. */
+    .supply {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 1em;
+    }
+    .supply .piece {
+      position: static; /* so they line up in a row */
+      cursor: pointer;
+    }
+    /* Center the reset button */
+    .reset-container {
+      text-align: center;
+      margin-top: 1em;
+    }
+    button {
+      padding: 0.5em 1em;
+      font-size: 1em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Gobblet (More Authentic)</h1>
+  <div class="container">
+    <div id="status" class="status">Loading...</div>
+
+    <!-- Player 1's supply of pieces -->
+    <h2>Player 1 Pieces</h2>
+    <div id="player1-supply" class="supply"></div>
+
+    <!-- Player 2's supply of pieces -->
+    <h2>Player 2 Pieces</h2>
+    <div id="player2-supply" class="supply"></div>
+
+    <!-- Game Board (4x4) -->
+    <h2>The Board</h2>
+    <div id="board" class="board"></div>
+
+    <div class="reset-container">
+      <button id="reset-btn">Reset Game</button>
+    </div>
+  </div>
+
+  <script>
+    /***************************************************************
+     * BASIC GOBBLET LOGIC (MORE AUTHENTIC)
+     ***************************************************************/
+
+    // We'll track board squares in a 2D array [row][col], each is a stack array
+    // from bottom to top: { player, size }.
+    let board = [];
+    const ROWS = 4;
+    const COLS = 4;
+
+    // Data for each player's supply (12 pieces: 3 small, 3 medium, 3 large, 3 XL)
+    // We'll store them as objects: {id, player, size, used:false}
+    const player1Pieces = [];
+    const player2Pieces = [];
+
+    // Which player's turn is it? (1 or 2)
+    let currentPlayer = 1;
+
+    // Currently selected piece object: {id, player, size, from: 'supply'|'board', row, col}
+    // - If from='board', row/col track where it was picked up from. 
+    // - If from='supply', it won't have row/col.
+    let selectedPiece = null;
+
+    // HTML elements
+    const boardEl = document.getElementById('board');
+    const player1SupplyEl = document.getElementById('player1-supply');
+    const player2SupplyEl = document.getElementById('player2-supply');
+    const statusEl = document.getElementById('status');
+    const resetBtn = document.getElementById('reset-btn');
+
+    // Init the board data: each cell is an empty array
+    function initBoard() {
+      board = [];
+      for (let r = 0; r < ROWS; r++) {
+        board[r] = [];
+        for (let c = 0; c < COLS; c++) {
+          board[r][c] = [];
+        }
+      }
+    }
+
+    // Init each player's supply (12 pieces: 3 of each size 1..4)
+    function initSupplies() {
+      player1Pieces.length = 0;
+      player2Pieces.length = 0;
+      let idCounter1 = 1;
+      let idCounter2 = 1;
+
+      function addPiecesForPlayer(player, size) {
+        // 3 copies for each size
+        for (let i = 0; i < 3; i++) {
+          let piece = {
+            id: player === 1 ? `P1-${idCounter1++}` : `P2-${idCounter2++}`,
+            player,
+            size,
+            used: false // not yet placed on the board
+          };
+          if (player === 1) {
+            player1Pieces.push(piece);
+          } else {
+            player2Pieces.push(piece);
+          }
+        }
+      }
+
+      [1,2,3,4].forEach(sz => {
+        addPiecesForPlayer(1, sz);
+        addPiecesForPlayer(2, sz);
+      });
+    }
+
+    /***************************************************************
+     * Rendering Functions
+     ***************************************************************/
+
+    // Create the entire board + squares
+    function renderBoard() {
+      boardEl.innerHTML = '';
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const squareDiv = document.createElement('div');
+          squareDiv.classList.add('square');
+          squareDiv.id = `square-${r}-${c}`;
+
+          // On click:
+          // 1) If we have no selectedPiece, try picking up the top piece (if it's ours).
+          // 2) If we do have a selectedPiece, try placing it here.
+          squareDiv.onclick = () => {
+            handleSquareClick(r, c);
+          };
+
+          // If there's a top piece, we render only that top piece.
+          let stack = board[r][c];
+          if (stack.length > 0) {
+            const topPiece = stack[stack.length - 1];
+            const pieceDiv = createPieceDiv(topPiece);
+            // position the piece at the center
+            pieceDiv.style.position = 'absolute';
+            pieceDiv.style.top = '50%';
+            pieceDiv.style.left = '50%';
+            pieceDiv.style.transform = 'translate(-50%, -50%)';
+            squareDiv.appendChild(pieceDiv);
+          }
+
+          // Append the square
+          boardEl.appendChild(squareDiv);
+        }
+      }
+    }
+
+    // Create the supply for each player
+    function renderSupplies() {
+      player1SupplyEl.innerHTML = '';
+      player2SupplyEl.innerHTML = '';
+
+      // Player 1
+      player1Pieces.forEach(piece => {
+        if (!piece.used) {
+          const div = createPieceDiv(piece);
+          // If we click on a supply piece:
+          //  - If we already have a piece selected, we may either override selection or alert
+          //  - For simplicity, let's override the selection
+          div.onclick = () => {
+            pickUpFromSupply(piece);
+          };
+          player1SupplyEl.appendChild(div);
+        }
+      });
+
+      // Player 2
+      player2Pieces.forEach(piece => {
+        if (!piece.used) {
+          const div = createPieceDiv(piece);
+          div.onclick = () => {
+            pickUpFromSupply(piece);
+          };
+          player2SupplyEl.appendChild(div);
+        }
+      });
+    }
+
+    // Helper to create a DOM element for a piece (for display)
+    function createPieceDiv(piece) {
+      const div = document.createElement('div');
+      div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
+      // If you'd like a size label, you can do: div.textContent = piece.size;
+      // We'll keep it blank for a cleaner look
+      return div;
+    }
+
+    /***************************************************************
+     * Interaction / Click Handlers
+     ***************************************************************/
+
+    // Click in the supply
+    function pickUpFromSupply(piece) {
+      // Must be current player's piece
+      if (piece.player !== currentPlayer) {
+        alert(`It's Player ${currentPlayer}'s turn, not yours!`);
+        return;
+      }
+      // If we already have a piece selected, override or prompt
+      if (selectedPiece) {
+        alert(`You already have a piece in hand. Placing it first or reselecting will override it.`);
+      }
+      selectedPiece = {
+        id: piece.id,
+        player: piece.player,
+        size: piece.size,
+        from: 'supply'
+      };
+      statusEl.textContent = `Player ${currentPlayer} picked up a size${piece.size} piece from supply. Now place it on the board.`;
+    }
+
+    // When we click on a board square:
+    // 1) If no piece is selected, attempt to pick up the top piece (if it's ours).
+    // 2) If a piece is selected, attempt to place it here.
+    function handleSquareClick(r, c) {
+      let stack = board[r][c];
+
+      // If no selected piece, try to pick up from the board
+      if (!selectedPiece) {
+        // If there's nothing in this square, do nothing
+        if (stack.length === 0) {
+          alert(`No piece here to pick up.`);
+          return;
+        }
+        // Check the top piece
+        const topPiece = stack[stack.length - 1];
+        // Must belong to currentPlayer
+        if (topPiece.player !== currentPlayer) {
+          alert(`Top piece belongs to Player ${topPiece.player}, not you!`);
+          return;
+        }
+        // We can pick it up
+        stack.pop(); // remove from the board
+        selectedPiece = {
+          id: topPiece.id || null, // if we had an ID stored
+          player: topPiece.player,
+          size: topPiece.size,
+          from: 'board',
+          row: r,
+          col: c
+        };
+        statusEl.textContent = `Player ${currentPlayer} picked up a size${topPiece.size} piece from the board. Place it somewhere else.`;
+        renderBoard();
+        return;
+      }
+
+      // If we *do* have a selected piece, try to place it on (r,c)
+      // Check if we can stack
+      if (stack.length > 0) {
+        const topPiece = stack[stack.length - 1];
+        if (selectedPiece.size <= topPiece.size) {
+          alert(`Your piece is too small to cover the top piece (size${topPiece.size}).`);
+          return;
+        }
+      }
+
+      // Place it
+      stack.push({
+        player: selectedPiece.player,
+        size: selectedPiece.size,
+        id: selectedPiece.id
+      });
+
+      // If this piece came from supply, mark it used
+      if (selectedPiece.from === 'supply') {
+        markPieceUsed(selectedPiece);
+      }
+
+      // Re-render
+      renderBoard();
+      renderSupplies();
+
+      // Check win
+      if (checkWin(selectedPiece.player)) {
+        statusEl.textContent = `Player ${selectedPiece.player} wins!`;
+        disableAllMoves();
+        selectedPiece = null;
+        return;
+      }
+
+      // Clear selected piece & switch turn
+      selectedPiece = null;
+      currentPlayer = (currentPlayer === 1) ? 2 : 1;
+      statusEl.textContent = `Player ${currentPlayer}'s turn.`;
+    }
+
+    // Mark a piece from supply as used
+    function markPieceUsed(sel) {
+      if (sel.player === 1) {
+        const p = player1Pieces.find(p => p.id === sel.id);
+        if (p) p.used = true;
+      } else {
+        const p = player2Pieces.find(p => p.id === sel.id);
+        if (p) p.used = true;
+      }
+    }
+
+    // Disable further clicks after a win
+    function disableAllMoves() {
+      // Remove onclick from all squares
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const squareDiv = document.getElementById(`square-${r}-${c}`);
+          if (squareDiv) {
+            squareDiv.onclick = null;
+          }
+        }
+      }
+      // Also remove piece selection from supply
+      player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
+      player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
+    }
+
+    /***************************************************************
+     * Win Check
+     ***************************************************************/
+    function checkWin(player) {
+      // Build a "topGrid" representing the top piece's player in each cell, or 0 if empty
+      let topGrid = [];
+      for (let r = 0; r < ROWS; r++) {
+        topGrid[r] = [];
+        for (let c = 0; c < COLS; c++) {
+          let stack = board[r][c];
+          if (stack.length > 0) {
+            topGrid[r][c] = stack[stack.length - 1].player;
+          } else {
+            topGrid[r][c] = 0;
+          }
+        }
+      }
+
+      // Check each row
+      for (let r = 0; r < ROWS; r++) {
+        if (topGrid[r].every(p => p === player)) return true;
+      }
+      // Check each column
+      for (let c = 0; c < COLS; c++) {
+        let colVals = [];
+        for (let r = 0; r < ROWS; r++) {
+          colVals.push(topGrid[r][c]);
+        }
+        if (colVals.every(p => p === player)) return true;
+      }
+      // Check diagonals
+      // Diag1 (top-left to bottom-right)
+      let diag1 = [topGrid[0][0], topGrid[1][1], topGrid[2][2], topGrid[3][3]];
+      if (diag1.every(p => p === player)) return true;
+      // Diag2 (top-right to bottom-left)
+      let diag2 = [topGrid[0][3], topGrid[1][2], topGrid[2][1], topGrid[3][0]];
+      if (diag2.every(p => p === player)) return true;
+
+      return false;
+    }
+
+    /***************************************************************
+     * Game Lifecycle
+     ***************************************************************/
+    function initGame() {
+      initBoard();
+      initSupplies();
+      renderBoard();
+      renderSupplies();
+      currentPlayer = 1;
+      selectedPiece = null;
+      statusEl.textContent = `Player ${currentPlayer}'s turn.`;
+    }
+
+    // On "Reset Game" button click, re-initialize
+    resetBtn.addEventListener('click', () => {
+      initGame();
+    });
+
+    // Start on window load
+    window.onload = initGame;
+  </script>
+</body>
+</html>
