@@ -392,6 +392,17 @@
         currentPlayer: currentPlayer
       };
       botWorker.postMessage({ state: state, timeLimit: 10 });
+      botWorker.onmessage = function(e) {
+        const { move, error } = e.data;
+        if (error) {
+          console.error("Bot error:", error);
+          return;
+        }
+        if (move) {
+          console.log("Bot move received:", move);
+          applyBotMove(move);
+        }
+      };
     }
     
     function applyBotMove(move) {
