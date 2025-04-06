@@ -203,7 +203,7 @@
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
 
-    
+    let botWorker = new Worker("botWorker.js");
 
     /***************************************************************
      * Game Initialization & Rendering
@@ -422,7 +422,6 @@
      ***************************************************************/
     function startBotTurn() {
       // Bot Web Worker setup (assumes botWorker.js is configured for Pyodide)
-      let botWorker = new Worker("botWorker.js");
       const state = {
         board: board,
         supply1: player1Pieces,
