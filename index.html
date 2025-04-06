@@ -9,27 +9,42 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   
   <style>
-    /* Make sure the body covers the full viewport and shows the background image. */
+    /* Global background: show the entire image with black margins */
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       font-family: 'Roboto', sans-serif;
-      background-color: black; /* Fallback/side margins. */
+      background-color: black;
       background-image: url("assets/images/Gobblet-backround.png");
       background-repeat: no-repeat;
       background-position: center center;
-      background-size: contain; /* Ensures entire image is shown, with black bars if needed. */
+      background-size: contain;
     }
-
-    /* Title at the top */
+    
     h1 {
       text-align: center;
       margin: 1em 0 0.5em 0;
       color: #fff;
     }
-
-    /* Main layout: left supply, center board, right supply */
+    
+    /* Clock bar at the top */
+    .clock-container {
+      width: 80%;
+      height: 10px;
+      background: rgba(255,255,255,0.3);
+      margin: 0 auto 10px;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    #clockBar {
+      height: 100%;
+      width: 100%;
+      background: #3498db;
+      transition: width 1s linear;
+    }
+    
+    /* Main layout: left supply, board in center, right supply */
     .game-layout {
       display: flex;
       justify-content: center;
@@ -37,10 +52,9 @@
       gap: 20px;
       max-width: 1200px;
       margin: 0 auto;
-      padding: 0 20px 20px; /* Some spacing around */
+      padding: 0 20px 20px;
     }
-
-    /* Supply columns */
+    
     .supply-container {
       width: 150px;
       display: flex;
@@ -66,22 +80,21 @@
       transform: scale(1.1);
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-
-    /* Board container: now with NO background box behind it */
+    
+    /* Board container: no large white overlay now */
     .board-container {
       flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
       margin-top: 20px;
+      position: relative;
     }
     .board-container h2 {
       margin-bottom: 10px;
       font-size: 1.2em;
       color: #fff;
       text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      text-align: center;
     }
-
+    
     /* The 4x4 board grid */
     .board {
       display: grid;
@@ -90,13 +103,11 @@
       justify-content: center;
       margin-bottom: 20px;
     }
-
-    /* Each square: mostly transparent so the background is visible */
     .square {
       width: 90px;
       height: 90px;
-      background: rgba(255, 255, 255, 0.2); /* Adjust for more or less transparency */
-      border: 2px solid rgba(255, 255, 255, 0.3); /* Subtle border */
+      background: rgba(255,255,255,0.2);
+      border: 2px solid rgba(255,255,255,0.3);
       border-radius: 4px;
       display: flex;
       align-items: center;
@@ -106,10 +117,10 @@
       transition: background 0.2s ease;
     }
     .square:hover {
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(255,255,255,0.3);
     }
-
-    /* Piece styling */
+    
+    /* Pieces */
     .piece {
       border-radius: 50%;
       display: flex;
@@ -119,22 +130,24 @@
       font-weight: bold;
       position: relative;
     }
-    /* Sizes */
     .size1 { width: 35px; height: 35px; font-size: 0.75em; }
     .size2 { width: 45px; height: 45px; font-size: 0.85em; }
     .size3 { width: 55px; height: 55px; font-size: 1em; }
     .size4 { width: 65px; height: 65px; font-size: 1.1em; }
-
-    /* Player colors (red & blue) */
+    
+    /* Color scheme: Player 1 is red, Player 2 is blue */
     .player1 { background: #e74c3c; }
     .player2 { background: #3498db; }
-
-    /* Reset & Music Buttons */
-    .reset-container, .music-controls {
+    
+    /* Fixed controls: Reset and Music Controls (placed at a fixed position at the bottom) */
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       text-align: center;
-      margin: 10px 0;
     }
-    button {
+    .controls button {
       background: #3498db;
       color: #fff;
       border: none;
@@ -145,69 +158,111 @@
       transition: background 0.2s ease;
       margin: 5px;
     }
-    button:hover {
+    .controls button:hover {
       background: #2980b9;
     }
   </style>
 </head>
 <body>
   <h1>Hayton Gobblet</h1>
-
+  
+  <!-- Clock bar at the top -->
+  <div class="clock-container">
+    <div id="clockBar"></div>
+  </div>
+  
   <div class="game-layout">
-    <!-- Player 1 Supply (Left) -->
+    <!-- Left Supply (Player 1 - Human) -->
     <div class="supply-container">
       <h2>Player 1</h2>
       <div id="player1-supply" class="supply"></div>
     </div>
-
-    <!-- Board in Center (No big white box) -->
+    
+    <!-- Board in Center -->
     <div class="board-container">
       <h2>The Board</h2>
       <div id="board" class="board"></div>
-      <div class="reset-container">
-        <button id="reset-btn">Reset Game</button>
-      </div>
     </div>
-
-    <!-- Player 2 Supply (Right) -->
+    
+    <!-- Right Supply (Player 2 - Bot) -->
     <div class="supply-container">
       <h2>Player 2</h2>
       <div id="player2-supply" class="supply"></div>
     </div>
   </div>
-
-  <!-- Music Controls -->
-  <div class="music-controls">
+  
+  <!-- Fixed Controls (Reset & Music) -->
+  <div class="controls">
+    <button id="reset-btn">Reset Game</button>
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
   </div>
-
+  
   <!-- Background Music -->
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
-
+  
   <script>
     /***************************************************************
-     * Gobblet Game Logic
+     * Global Variables & Game State
      ***************************************************************/
+    const MOVE_TIME = 120; // seconds per move
+    let moveTimeRemaining = MOVE_TIME;
+    let moveTimerInterval = null;
+    
+    // Game state variables
     let board = [];
     const ROWS = 4;
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;
+    let currentPlayer = 1; // Assume Player 1 is human, Player 2 is bot
     let selectedPiece = null;
-
+    
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
     const player2SupplyEl = document.getElementById('player2-supply');
     const resetBtn = document.getElementById('reset-btn');
+    const clockBar = document.getElementById('clockBar');
     
     // Music controls
     const bgMusic = document.getElementById('bg-music');
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
-
-    // Initialize the board as a 2D array of stacks
+    
+    // Bot Web Worker (we’ll create botWorker.js separately)
+    let botWorker = null;
+    
+    /***************************************************************
+     * Timer Functions
+     ***************************************************************/
+    function startMoveTimer() {
+      moveTimeRemaining = MOVE_TIME;
+      updateClockBar();
+      if (moveTimerInterval) clearInterval(moveTimerInterval);
+      moveTimerInterval = setInterval(() => {
+        moveTimeRemaining--;
+        updateClockBar();
+        if (moveTimeRemaining <= 0) {
+          clearInterval(moveTimerInterval);
+          alert(`Time’s up! Player ${currentPlayer === 1 ? 2 : 1} wins!`);
+          disableAllMoves();
+        }
+      }, 1000);
+    }
+    
+    function updateClockBar() {
+      // Update width percentage
+      const percent = (moveTimeRemaining / MOVE_TIME) * 100;
+      clockBar.style.width = percent + "%";
+    }
+    
+    function stopMoveTimer() {
+      if (moveTimerInterval) clearInterval(moveTimerInterval);
+    }
+    
+    /***************************************************************
+     * Game Initialization & Rendering
+     ***************************************************************/
     function initBoard() {
       board = [];
       for (let r = 0; r < ROWS; r++) {
@@ -217,14 +272,13 @@
         }
       }
     }
-
-    // Create 12 pieces per player (3 of each size)
+    
     function initSupplies() {
       player1Pieces.length = 0;
       player2Pieces.length = 0;
       let idCounter1 = 1;
       let idCounter2 = 1;
-
+    
       function addPiecesForPlayer(player, size) {
         for (let i = 0; i < 3; i++) {
           let piece = {
@@ -233,21 +287,17 @@
             size,
             used: false
           };
-          if (player === 1) {
-            player1Pieces.push(piece);
-          } else {
-            player2Pieces.push(piece);
-          }
+          if (player === 1) player1Pieces.push(piece);
+          else player2Pieces.push(piece);
         }
       }
-
+    
       [1, 2, 3, 4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
       });
     }
-
-    // Render the 4x4 board
+    
     function renderBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < ROWS; r++) {
@@ -256,7 +306,7 @@
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
           squareDiv.onclick = () => handleSquareClick(r, c);
-
+    
           let stack = board[r][c];
           if (stack.length > 0) {
             const topPiece = stack[stack.length - 1];
@@ -267,17 +317,15 @@
             pieceDiv.style.transform = 'translate(-50%, -50%)';
             squareDiv.appendChild(pieceDiv);
           }
-
           boardEl.appendChild(squareDiv);
         }
       }
     }
-
-    // Render the supplies (vertical stacks on left & right)
+    
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
-
+    
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
@@ -285,7 +333,6 @@
           player1SupplyEl.appendChild(div);
         }
       });
-
       player2Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
@@ -294,15 +341,16 @@
         }
       });
     }
-
-    // Create a DOM element for a piece
+    
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
       return div;
     }
-
-    // Pick up a piece from the supply
+    
+    /***************************************************************
+     * Player Interaction
+     ***************************************************************/
     function pickUpFromSupply(piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -310,6 +358,7 @@
       }
       if (selectedPiece) {
         alert('You already have a piece in hand. Place it first or reselect.');
+        return;
       }
       selectedPiece = {
         id: piece.id,
@@ -318,12 +367,10 @@
         from: 'supply'
       };
     }
-
-    // Click on a board square
+    
     function handleSquareClick(r, c) {
       let stack = board[r][c];
-
-      // If no piece is selected, try to pick up the top piece (if it belongs to the current player)
+      // If no piece is selected, try picking up the top piece from the board
       if (!selectedPiece) {
         if (stack.length === 0) {
           alert('No piece here to pick up.');
@@ -334,7 +381,6 @@
           alert(`Top piece belongs to Player ${topPiece.player}, not you!`);
           return;
         }
-        // Remove it from the stack
         stack.pop();
         selectedPiece = {
           id: topPiece.id || null,
@@ -347,8 +393,8 @@
         renderBoard();
         return;
       }
-
-      // If a piece is selected, attempt to place it
+    
+      // If a piece is selected, attempt to place it on the square
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
@@ -356,31 +402,30 @@
           return;
         }
       }
-      // Place the piece
       stack.push({
         player: selectedPiece.player,
         size: selectedPiece.size,
         id: selectedPiece.id
       });
-      if (selectedPiece.from === 'supply') {
-        markPieceUsed(selectedPiece);
-      }
+      if (selectedPiece.from === 'supply') markPieceUsed(selectedPiece);
       renderBoard();
       renderSupplies();
-
-      // Check for win
       if (checkWin(selectedPiece.player)) {
         alert(`Player ${selectedPiece.player} wins!`);
         disableAllMoves();
-        selectedPiece = null;
+        stopMoveTimer();
         return;
       }
-
-      // Switch turns
+      // Switch turn and reset timer
       selectedPiece = null;
       currentPlayer = currentPlayer === 1 ? 2 : 1;
+      startMoveTimer();
+      // If it's now the bot's turn, start the bot move
+      if (currentPlayer === 2) {
+        startBotTurn();
+      }
     }
-
+    
     function markPieceUsed(sel) {
       if (sel.player === 1) {
         const p = player1Pieces.find(p => p.id === sel.id);
@@ -390,7 +435,7 @@
         if (p) p.used = true;
       }
     }
-
+    
     function disableAllMoves() {
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -401,9 +446,8 @@
       player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
       player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
-
+    
     function checkWin(player) {
-      // Build a quick grid of top pieces
       let topGrid = [];
       for (let r = 0; r < ROWS; r++) {
         topGrid[r] = [];
@@ -412,45 +456,102 @@
           topGrid[r][c] = stack.length > 0 ? stack[stack.length - 1].player : 0;
         }
       }
-      // Check rows
+      // Check rows, columns, and diagonals
       for (let r = 0; r < ROWS; r++) {
         if (topGrid[r].every(p => p === player)) return true;
       }
-      // Check cols
       for (let c = 0; c < COLS; c++) {
         const colVals = [];
-        for (let r = 0; r < ROWS; r++) {
-          colVals.push(topGrid[r][c]);
-        }
+        for (let r = 0; r < ROWS; r++) colVals.push(topGrid[r][c]);
         if (colVals.every(p => p === player)) return true;
       }
-      // Check diag1
       let diag1 = [topGrid[0][0], topGrid[1][1], topGrid[2][2], topGrid[3][3]];
       if (diag1.every(p => p === player)) return true;
-      // Check diag2
       let diag2 = [topGrid[0][3], topGrid[1][2], topGrid[2][1], topGrid[3][0]];
       if (diag2.every(p => p === player)) return true;
-
       return false;
     }
-
+    
+    /***************************************************************
+     * Bot Turn Using Web Worker
+     ***************************************************************/
+    function startBotTurn() {
+      // Create the worker if not already created
+      if (!botWorker) {
+        botWorker = new Worker("botWorker.js");
+        botWorker.onmessage = function(e) {
+          const move = e.data.move;
+          // Apply the bot move if we got one
+          if (move) {
+            applyBotMove(move);
+          }
+        }
+      }
+      
+      // Build current game state to send to worker
+      const state = {
+        board: board,
+        supply1: player1Pieces,
+        supply2: player2Pieces,
+        currentPlayer: currentPlayer
+      };
+      // Send state and allowed thinking time (in ms, e.g., 2 minutes)
+      botWorker.postMessage({ state: state, timeLimit: 120 * 1000 });
+    }
+    
+    function applyBotMove(move) {
+      // move should contain: { type: "supply" or "board", piece, from (if board), to: { row, col } }
+      const { type, piece, from, to } = move;
+      // Remove piece from supply if needed
+      if (type === "supply") {
+        const supply = piece.player === 1 ? player1Pieces : player2Pieces;
+        const p = supply.find(p => p.id === piece.id);
+        if (p) p.used = true;
+      } else if (type === "board") {
+        // Remove piece from its original square
+        let stack = board[from.row][from.col];
+        // Assume the top of the stack matches
+        if (stack.length > 0) stack.pop();
+      }
+      // Place piece on destination square
+      board[to.row][to.col].push({
+        player: piece.player,
+        size: piece.size,
+        id: piece.id
+      });
+      renderBoard();
+      renderSupplies();
+      if (checkWin(piece.player)) {
+        alert(`Player ${piece.player} wins!`);
+        disableAllMoves();
+        stopMoveTimer();
+        return;
+      }
+      // Switch turn back to human (player 1) and reset timer
+      currentPlayer = 1;
+      startMoveTimer();
+    }
+    
+    /***************************************************************
+     * Game Initialization
+     ***************************************************************/
     function initGame() {
+      stopMoveTimer();
       initBoard();
       initSupplies();
       renderBoard();
       renderSupplies();
       currentPlayer = 1;
       selectedPiece = null;
+      startMoveTimer();
     }
-
-    // Reset game
+    
     resetBtn.addEventListener('click', initGame);
-
+    
     // Music controls
     playMusicBtn.addEventListener('click', () => bgMusic.play());
     pauseMusicBtn.addEventListener('click', () => bgMusic.pause());
-
-    // Initialize on load
+    
     window.onload = initGame;
   </script>
 </body>
