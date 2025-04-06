@@ -7,7 +7,7 @@ let pyodide = null;
 async function initPyodide() {
   pyodide = await loadPyodide();
   // Load your engine code from gobblet-engine/engine.py
-  const engineCode = await (await fetch("Gobblet-engine/engine.py")).text();
+  const engineCode = await (await fetch("Gobbet-engine/engine.py")).text();
   await pyodide.runPythonAsync(engineCode);
   pyodideReady = true;
   console.log("Pyodide and engine loaded in worker.");
