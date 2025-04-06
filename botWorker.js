@@ -1,7 +1,7 @@
 // botWorker.pyw (rename as botWorker.js; it’s our worker script that loads Pyodide)
 
 // Import Pyodide script (adjust URL as needed)
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js");
+importScripts("https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js");
 
 let pyodideReady = false;
 let pyodide = null;
