@@ -115,6 +115,21 @@ class GobbletEngine:
             return {'score': min_eval, 'move': best_move}
 
 def iterative_deepening(engine, time_limit):
+    # If the board is completely empty, choose the fixed first move.
+    board_empty = all(not cell for row in engine.board for cell in row)
+    if board_empty:
+        supply = engine.supply1 if engine.current_player == 1 else engine.supply2
+        # Look for a piece with size 4 ("big") that is not used.
+        for piece in supply:
+            if piece['size'] == 4 and not piece['used']:
+                return {
+                    'type': 'supply',
+                    'piece': piece,
+                    'to': (1, 2)  # (row 1, column 2) == 2nd down, 3rd across (if indexing from 0)
+                }
+
+    # Otherwise, perform iterative deepening search.
+    import time
     deadline = time.time() + time_limit
     best_move = None
     depth = 1
@@ -123,10 +138,10 @@ def iterative_deepening(engine, time_limit):
         if result and result.get('move'):
             best_move = result['move']
         depth += 1
-        # If we reach a terminal evaluation, break early.
         if abs(result.get('score', 0)) == float('inf'):
             break
     return best_move
+
 
 if __name__ == '__main__':
     # Example initialization:
