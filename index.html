@@ -4,12 +4,9 @@
   <meta charset="UTF-8" />
   <title>Hayton Gobblet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  
   <style>
-    /* Global background: show the entire image with black margins */
     html, body {
       margin: 0;
       padding: 0;
@@ -21,14 +18,11 @@
       background-position: center center;
       background-size: contain;
     }
-
     h1 {
       text-align: center;
       margin: 1em 0 0.5em 0;
       color: #fff;
     }
-
-    /* Main layout: left supply, board in center, right supply */
     .game-layout {
       display: flex;
       justify-content: center;
@@ -38,8 +32,6 @@
       margin: 0 auto;
       padding: 0 20px 20px;
     }
-
-    /* Supply container styling */
     .supply-container {
       width: 150px;
       display: flex;
@@ -65,8 +57,6 @@
       transform: scale(1.1);
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-
-    /* Board container: no extra overlay */
     .board-container {
       flex: 1;
       margin-top: 20px;
@@ -79,8 +69,6 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.6);
       text-align: center;
     }
-
-    /* 4x4 board grid */
     .board {
       display: grid;
       grid-template-columns: repeat(4, 90px);
@@ -104,8 +92,6 @@
     .square:hover {
       background: rgba(255,255,255,0.3);
     }
-
-    /* Pieces styling */
     .piece {
       border-radius: 50%;
       display: flex;
@@ -119,12 +105,8 @@
     .size2 { width: 45px; height: 45px; font-size: 0.85em; }
     .size3 { width: 55px; height: 55px; font-size: 1em; }
     .size4 { width: 65px; height: 65px; font-size: 1.1em; }
-
-    /* Player colors: red for Player 1, blue for Player 2 */
     .player1 { background: #e74c3c; }
     .player2 { background: #3498db; }
-
-    /* Fixed controls: Reset and Music Buttons */
     .controls {
       position: fixed;
       bottom: 20px;
@@ -150,64 +132,60 @@
 </head>
 <body>
   <h1>Hayton Gobblet</h1>
-
   <div class="game-layout">
     <!-- Left Supply (Player 1) -->
     <div class="supply-container">
       <h2>Player 1</h2>
       <div id="player1-supply" class="supply"></div>
     </div>
-
     <!-- Board in Center -->
     <div class="board-container">
       <h2>The Board</h2>
       <div id="board" class="board"></div>
     </div>
-
     <!-- Right Supply (Player 2) -->
     <div class="supply-container">
       <h2>Player 2</h2>
       <div id="player2-supply" class="supply"></div>
     </div>
   </div>
-
-  <!-- Fixed Controls -->
   <div class="controls">
     <button id="reset-btn">Reset Game</button>
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
   </div>
-
-  <!-- Background Music -->
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
-
   <script>
-    /***************************************************************
-     * Gobblet Game Logic (without move timer)
-     ***************************************************************/
+    // Global game variables
     let board = [];
     const ROWS = 4;
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;  // Assume Player 1 is human, Player 2 is bot
+    let currentPlayer = 1;  // Player 1 is human, Player 2 is bot
     let selectedPiece = null;
-
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
     const player2SupplyEl = document.getElementById('player2-supply');
     const resetBtn = document.getElementById('reset-btn');
-
-    // Music controls
     const bgMusic = document.getElementById('bg-music');
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
-
+    
+    // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
-
-    /***************************************************************
-     * Game Initialization & Rendering
-     ***************************************************************/
+    botWorker.onmessage = function(e) {
+      const { move, error } = e.data;
+      if (error) {
+        alert("Bot error: " + error);
+        return;
+      }
+      if (move) {
+        applyBotMove(move);
+      }
+    };
+    
+    // Game initialization and rendering functions
     function initBoard() {
       board = [];
       for (let r = 0; r < ROWS; r++) {
@@ -217,13 +195,12 @@
         }
       }
     }
-
+    
     function initSupplies() {
       player1Pieces.length = 0;
       player2Pieces.length = 0;
       let idCounter1 = 1;
       let idCounter2 = 1;
-
       function addPiecesForPlayer(player, size) {
         for (let i = 0; i < 3; i++) {
           let piece = {
@@ -236,13 +213,12 @@
           else player2Pieces.push(piece);
         }
       }
-
-      [1, 2, 3, 4].forEach(sz => {
+      [1,2,3,4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
       });
     }
-
+    
     function renderBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < ROWS; r++) {
@@ -251,7 +227,6 @@
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
           squareDiv.onclick = () => handleSquareClick(r, c);
-
           let stack = board[r][c];
           if (stack.length > 0) {
             const topPiece = stack[stack.length - 1];
@@ -266,11 +241,10 @@
         }
       }
     }
-
+    
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
-
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
@@ -286,16 +260,14 @@
         }
       });
     }
-
+    
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
       return div;
     }
-
-    /***************************************************************
-     * Player Interaction
-     ***************************************************************/
+    
+    // Player interaction functions
     function pickUpFromSupply(piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -312,11 +284,9 @@
         from: 'supply'
       };
     }
-
+    
     function handleSquareClick(r, c) {
       let stack = board[r][c];
-
-      // If no piece is selected, try to pick up the top piece from the board
       if (!selectedPiece) {
         if (stack.length === 0) {
           alert('No piece here to pick up.');
@@ -339,8 +309,6 @@
         renderBoard();
         return;
       }
-
-      // If a piece is selected, attempt to place it
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
@@ -361,14 +329,13 @@
         disableAllMoves();
         return;
       }
-      // Switch turn: if it's now the bot's turn, trigger the bot move.
       selectedPiece = null;
       currentPlayer = currentPlayer === 1 ? 2 : 1;
       if (currentPlayer === 2) {
         startBotTurn();
       }
     }
-
+    
     function markPieceUsed(sel) {
       if (sel.player === 1) {
         const p = player1Pieces.find(p => p.id === sel.id);
@@ -378,7 +345,7 @@
         if (p) p.used = true;
       }
     }
-
+    
     function disableAllMoves() {
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -389,7 +356,7 @@
       player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
       player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
-
+    
     function checkWin(player) {
       let topGrid = [];
       for (let r = 0; r < ROWS; r++) {
@@ -399,7 +366,6 @@
           topGrid[r][c] = stack.length > 0 ? stack[stack.length - 1].player : 0;
         }
       }
-      // Check rows, columns, and diagonals
       for (let r = 0; r < ROWS; r++) {
         if (topGrid[r].every(p => p === player)) return true;
       }
@@ -416,47 +382,27 @@
       if (diag2.every(p => p === player)) return true;
       return false;
     }
-
-    /***************************************************************
-     * Bot Turn Using Web Worker
-     ***************************************************************/
+    
+    // Bot turn: send current state to the worker and let Python pick a random legal move.
     function startBotTurn() {
-      // Bot Web Worker setup (assumes botWorker.js is configured for Pyodide)
       const state = {
         board: board,
         supply1: player1Pieces,
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
-      // Send the current state and a 30-second time limit (in ms) to the bot worker.
-      botWorker.postMessage({ state: state, timeLimit: 30000 });
+      botWorker.postMessage({ state: state, timeLimit: 10000 });
     }
-
-    // Listen for messages from the bot worker.
-    botWorker.onmessage = function(e) {
-      const { move, error } = e.data;
-      if (error) {
-        alert("Bot error: " + error);
-        return;
-      }
-      if (move) {
-        // Apply the bot move.
-        applyBotMove(move);
-      }
-    };
-
+    
     function applyBotMove(move) {
-      // If the move is from supply, mark the piece as used.
       if (move.type === "supply") {
         const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
         const p = supply.find(p => p.id === move.piece.id);
         if (p) p.used = true;
       } else if (move.type === "board") {
-        // Remove piece from its original cell.
         let stack = board[move.from.row][move.from.col];
         if (stack.length > 0) stack.pop();
       }
-      // Place piece on destination cell.
       board[move.to.row][move.to.col].push({
         player: move.piece.player,
         size: move.piece.size,
@@ -469,13 +415,9 @@
         disableAllMoves();
         return;
       }
-      // Switch turn back to human.
       currentPlayer = 1;
     }
-
-    /***************************************************************
-     * Game Initialization
-     ***************************************************************/
+    
     function initGame() {
       initBoard();
       initSupplies();
@@ -484,13 +426,10 @@
       currentPlayer = 1;
       selectedPiece = null;
     }
-
+    
     resetBtn.addEventListener('click', initGame);
-
-    // Music controls
     playMusicBtn.addEventListener('click', () => bgMusic.play());
     pauseMusicBtn.addEventListener('click', () => bgMusic.pause());
-
     window.onload = initGame;
   </script>
 </body>
