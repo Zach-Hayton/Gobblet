@@ -394,15 +394,16 @@ def iterative_deepening(engine, max_time=20.0):
 #            MAIN get_move FUNCTION
 ####################################################
 
-def get_move(engine):
+def get_move(engine, max_time=20.0):
     """
-    Will think up to about 20 seconds using iterative deepening alpha-beta.
+    Will think up to about `max_time` seconds using iterative deepening alpha-beta.
     Returns the best move found within that time.
     """
-    print("AI thinking for up to ~20 seconds...")
-    move, score = iterative_deepening(engine, max_time=20.0)
+    print(f"AI thinking for up to ~{max_time} seconds...")
+    move, score = iterative_deepening(engine, max_time=max_time)
     print(f"Chosen move: {move} with score {score}")
     return move
+
 
 
 ####################################################
