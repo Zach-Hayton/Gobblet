@@ -447,6 +447,3 @@ if __name__ == '__main__':
     supply2 = create_supply(2)
 
     engine = GobbletEngine(board, supply1, supply2, current_player=1)
-
-    move_chosen = get_move(engine, max_time=10)
-    print("Move chosen by AI:", move_chosen)
