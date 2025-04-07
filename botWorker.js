@@ -6,7 +6,7 @@ let pyodide = null;
 
 async function initPyodide() {
   pyodide = await loadPyodide();
-  // Load your engine code from gobblet-engine/engine.py
+  // Adjust the path below if necessary:
   const engineCode = await (await fetch("Gobbet-engine/engine.py")).text();
   await pyodide.runPythonAsync(engineCode);
   pyodideReady = true;
@@ -19,13 +19,16 @@ self.onmessage = async function(e) {
   while (!pyodideReady) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+
+  // Construct the Python code to run
   const command = `
 import json
 state = json.loads('${JSON.stringify(state)}')
 engine = create_engine_from_state(state)
-move = get_move(engine, 10);
+move = get_move(engine, ${timeLimit})
 json.dumps(move)
 `;
+
   try {
     let resultJson = await pyodide.runPythonAsync(command);
     const result = JSON.parse(resultJson);
