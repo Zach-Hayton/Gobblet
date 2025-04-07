@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Hayton Gobblet</title>
+  <title>Gobblet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -28,12 +28,12 @@
       justify-content: center;
       align-items: flex-start;
       gap: 20px;
-      max-width: 1200px;
+      max-width: 1000px; /* narrower max width */
       margin: 0 auto;
-      padding: 0 20px 20px;
+      padding: 0 10px 20px; /* smaller horizontal padding for phone */
     }
     .supply-container {
-      width: 150px;
+      width: 100px; /* narrower supply column */
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -62,7 +62,8 @@
       margin-top: 20px;
       position: relative;
     }
-    .board-container h2 {
+    /* We'll dynamically update this h2 to show "Player 1's Turn" / "Player 2's Turn" */
+    #turn-indicator {
       margin-bottom: 10px;
       font-size: 1.2em;
       color: #fff;
@@ -71,14 +72,14 @@
     }
     .board {
       display: grid;
-      grid-template-columns: repeat(4, 90px);
+      grid-template-columns: repeat(4, 60px); /* smaller squares */
       grid-gap: 10px;
       justify-content: center;
       margin-bottom: 20px;
     }
     .square {
-      width: 90px;
-      height: 90px;
+      width: 60px;
+      height: 60px;
       background: rgba(255,255,255,0.2);
       border: 2px solid rgba(255,255,255,0.3);
       border-radius: 4px;
@@ -104,19 +105,19 @@
     /* SIZE-BASED SHADING:
        Larger sizes => darker (lower brightness) */
     .size1 {
-      width: 35px; height: 35px; font-size: 0.75em;
+      width: 25px; height: 25px; font-size: 0.7em;
       filter: brightness(100%);
     }
     .size2 {
-      width: 45px; height: 45px; font-size: 0.85em;
+      width: 35px; height: 35px; font-size: 0.8em;
       filter: brightness(90%);
     }
     .size3 {
-      width: 55px; height: 55px; font-size: 1em;
+      width: 45px; height: 45px; font-size: 0.9em;
       filter: brightness(80%);
     }
     .size4 {
-      width: 65px; height: 65px; font-size: 1.1em;
+      width: 55px; height: 55px; font-size: 1em;
       filter: brightness(70%);
     }
     /* Player Colors */
@@ -143,10 +144,15 @@
     .controls button:hover {
       background: #2980b9;
     }
+    /* Highlight class for whichever piece or square is selected. */
+    .selected {
+      outline: 3px solid yellow;
+      outline-offset: -2px;
+    }
   </style>
 </head>
 <body>
-  <h1>Hayton Gobblet</h1>
+  <h1>Gobblet</h1>
   <div class="game-layout">
     <!-- Left Supply (Player 1) -->
     <div class="supply-container">
@@ -155,7 +161,8 @@
     </div>
     <!-- Board in Center -->
     <div class="board-container">
-      <h2>The Board</h2>
+      <!-- This heading updates to "Player 1's Turn" or "Player 2's Turn" -->
+      <h2 id="turn-indicator">Player 1's Turn</h2>
       <div id="board" class="board"></div>
     </div>
     <!-- Right Supply (Player 2) -->
@@ -171,6 +178,7 @@
     <button id="pause-music-btn">Pause Music</button>
   </div>
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
+
   <script>
     /********************************************************************
      * GLOBALS AND DOM ELEMENTS
@@ -183,6 +191,9 @@
     let currentPlayer = 1;  // Player 1 = human, Player 2 = bot
     let selectedPiece = null;
 
+    // We'll store the DOM element currently highlighted (board square or supply piece)
+    let selectedElement = null;
+
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
     const player2SupplyEl = document.getElementById('player2-supply');
@@ -191,6 +202,7 @@
     const bgMusic = document.getElementById('bg-music');
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
+    const turnIndicatorEl = document.getElementById('turn-indicator');
 
     // We store previous states here to allow "undo".
     let historyStack = [];
@@ -241,10 +253,12 @@
       initSupplies();
       currentPlayer = 1;
       selectedPiece = null;
+      selectedElement = null;
       historyStack = [];
 
       renderBoard();
       renderSupplies();
+      updateTurnIndicator();
 
       // Save initial state
       saveHistory();
@@ -257,7 +271,7 @@
           const squareDiv = document.createElement('div');
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
-          squareDiv.onclick = () => handleSquareClick(r, c);
+          squareDiv.onclick = (event) => handleSquareClick(r, c, event);
 
           let stack = board[r][c];
           if (stack.length > 0) {
@@ -277,35 +291,54 @@
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
+
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          div.onclick = () => pickUpFromSupply(piece);
+          // Pass the div so we can highlight it if selected
+          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
           player1SupplyEl.appendChild(div);
         }
       });
       player2Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          div.onclick = () => pickUpFromSupply(piece);
+          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
           player2SupplyEl.appendChild(div);
         }
       });
     }
 
-    // Show size number on the circle
+    // Show size in the circle
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
-      // Put the size inside the circle
       div.textContent = piece.size;
       return div;
+    }
+
+    function updateTurnIndicator() {
+      turnIndicatorEl.textContent = `Player ${currentPlayer}'s Turn`;
+    }
+
+    /********************************************************************
+     * SELECTION / HIGHLIGHT
+     ********************************************************************/
+    function highlightElement(el) {
+      // remove highlight from any previously selected
+      if (selectedElement) {
+        selectedElement.classList.remove('selected');
+      }
+      selectedElement = el;
+      if (selectedElement) {
+        selectedElement.classList.add('selected');
+      }
     }
 
     /********************************************************************
      * HUMAN MOVES
      ********************************************************************/
-    function pickUpFromSupply(piece) {
+    function pickUpFromSupply(piece, pieceEl) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
         return;
@@ -314,6 +347,9 @@
         alert('You already have a piece in hand. Place it first or reselect.');
         return;
       }
+      // highlight the supply piece
+      highlightElement(pieceEl);
+
       selectedPiece = {
         id: piece.id,
         player: piece.player,
@@ -322,8 +358,10 @@
       };
     }
 
-    function handleSquareClick(r, c) {
+    function handleSquareClick(r, c, evt) {
+      const squareDiv = evt.currentTarget;
       let stack = board[r][c];
+
       if (!selectedPiece) {
         // Attempt to pick up from the board
         if (stack.length === 0) {
@@ -344,6 +382,9 @@
           row: r,
           col: c
         };
+        // highlight this square to show it's "picked up" from here
+        highlightElement(squareDiv);
+
         renderBoard();
         return;
       }
@@ -355,28 +396,34 @@
           return;
         }
       }
-      // Place the piece
+      // place the piece
       stack.push({
         player: selectedPiece.player,
         size: selectedPiece.size,
         id: selectedPiece.id
       });
-      if (selectedPiece.from === 'supply') markPieceUsed(selectedPiece);
+      if (selectedPiece.from === 'supply') {
+        markPieceUsed(selectedPiece);
+      }
+
+      // once placed, remove highlight
+      highlightElement(null);
 
       renderBoard();
       renderSupplies();
 
-      // Now that the piece is shown, do the win check in the next animation frame
+      // Wait a frame so the piece is visible
       window.requestAnimationFrame(() => {
         if (checkWin(selectedPiece.player)) {
           alert(`Player ${selectedPiece.player} wins!`);
           disableAllMoves();
         } else {
-          // If no win => next turn
+          // Next player's turn
           selectedPiece = null;
           currentPlayer = (currentPlayer === 1 ? 2 : 1);
+          updateTurnIndicator();
 
-          // Save state after the user move
+          // Save game state
           saveHistory();
 
           if (currentPlayer === 2) {
@@ -438,14 +485,15 @@
       renderBoard();
       renderSupplies();
 
-      // Do the win check after a small delay so the piece is shown
+      // Wait a frame so the piece is visible
       window.requestAnimationFrame(() => {
         if (checkWin(move.piece.player)) {
           alert(`Player ${move.piece.player} wins!`);
           disableAllMoves();
         } else {
           currentPlayer = 1;
-          // Save state after the bot move
+          updateTurnIndicator();
+          // Save after bot move
           saveHistory();
         }
       });
@@ -520,9 +568,12 @@
       player1Pieces.splice(0, player1Pieces.length, ...JSON.parse(JSON.stringify(prevState.player1Pieces)));
       player2Pieces.splice(0, player2Pieces.length, ...JSON.parse(JSON.stringify(prevState.player2Pieces)));
       currentPlayer = prevState.currentPlayer;
+      selectedPiece = null;
+      highlightElement(null); // remove any highlight
 
       renderBoard();
       renderSupplies();
+      updateTurnIndicator();
     }
 
     /********************************************************************
