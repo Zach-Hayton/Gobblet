@@ -12,12 +12,12 @@
       padding: 0;
       height: 100%;
       font-family: 'Roboto', sans-serif;
-      background-color: black;
+      /* Dark blue background around the image */
+      background-color: #0b2736;
       background-image: url("assets/images/Gobblet-backround.png");
       background-repeat: no-repeat;
       background-position: center center;
       background-size: contain;
-      overflow-x: hidden; /* prevent sideways scrolling if wide images */
     }
     h1 {
       text-align: center;
@@ -26,22 +26,22 @@
     }
     .game-layout {
       display: flex;
-      justify-content: center; /* center everything horizontally */
+      justify-content: center;
       align-items: flex-start;
-      gap: 10px; /* narrower gap */
-      max-width: 800px; /* narrower max width to bring columns in more */
+      gap: 10px; 
+      max-width: 900px; /* narrower overall width */
       margin: 0 auto;
-      padding: 0 5px 20px;
+      padding: 0 10px 20px;
     }
     .supply-container {
-      width: 70px; /* narrower supply column */
+      width: 70px; /* narrower supply columns */
       display: flex;
       flex-direction: column;
       align-items: center;
     }
     .supply-container h2 {
       margin-bottom: 10px;
-      font-size: 1.0em;
+      font-size: 1em;
       color: #fff;
     }
     .supply {
@@ -50,6 +50,14 @@
       gap: 10px;
       align-items: center;
     }
+    .supply .piece {
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .supply .piece:hover {
+      transform: scale(1.1);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
     .board-container {
       flex: 1;
       margin-top: 20px;
@@ -57,7 +65,7 @@
     }
     #turn-indicator {
       margin-bottom: 10px;
-      font-size: 1em;
+      font-size: 1.1em;
       color: #fff;
       text-shadow: 0 1px 2px rgba(0,0,0,0.6);
       text-align: center;
@@ -65,7 +73,7 @@
     .board {
       display: grid;
       grid-template-columns: repeat(4, 60px); /* smaller squares */
-      grid-gap: 6px; /* a bit smaller gap */
+      grid-gap: 6px; 
       justify-content: center;
       margin-bottom: 20px;
     }
@@ -75,24 +83,17 @@
       background: rgba(255,255,255,0.2);
       border: 2px solid rgba(255,255,255,0.3);
       border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       position: relative;
+      cursor: pointer;
       transition: background 0.2s ease;
     }
     .square:hover {
       background: rgba(255,255,255,0.3);
     }
-    /* Board pieces: absolute in center of their square */
-    .piece-board {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      cursor: grab;
-    }
-    /* Supply pieces: normal flow in a column */
-    .piece-supply {
-      position: relative;
-      cursor: grab;
-    }
-    /* Common piece styling */
+    /* Common piece styles */
     .piece {
       border-radius: 50%;
       display: flex;
@@ -100,9 +101,9 @@
       justify-content: center;
       color: #fff;
       font-weight: bold;
+      position: relative;
     }
-    /* SIZE-BASED SHADING:
-       Larger sizes => darker (lower brightness) */
+    /* SIZE-BASED SHADING: bigger => darker */
     .size1 {
       width: 25px; height: 25px; font-size: 0.7em;
       filter: brightness(100%);
@@ -121,6 +122,13 @@
     }
     .player1 { background: #e74c3c; }
     .player2 { background: #3498db; }
+
+    /* Highlight for selected piece or square */
+    .selected {
+      outline: 3px solid yellow;
+      outline-offset: -2px;
+    }
+
     .controls {
       position: fixed;
       bottom: 20px;
@@ -141,14 +149,6 @@
     }
     .controls button:hover {
       background: #2980b9;
-    }
-    /* Ghost piece for dragging. We'll set pointer-events to none so it doesn't interrupt events. */
-    .drag-ghost {
-      position: fixed;
-      z-index: 9999;
-      pointer-events: none;
-      opacity: 0.8;
-      cursor: grabbing;
     }
   </style>
 </head>
@@ -181,6 +181,7 @@
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
   </div>
+
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
 
   <script>
@@ -192,10 +193,11 @@
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;
-    let draggingPiece = null;    // The piece data {id,player,size,from...}
-    let draggingElement = null;  // The DOM element being dragged (the ghost)
-    let originSquare = null;     // If we picked from the board, store (r,c) so we can revert
+    let currentPlayer = 1;  // Player 1 = human, Player 2 = bot
+    let selectedPiece = null;
+
+    // We'll track the DOM element currently highlighted (board square or supply piece)
+    let selectedElement = null;
 
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
@@ -207,7 +209,10 @@
     const pauseMusicBtn = document.getElementById('pause-music-btn');
     const turnIndicatorEl = document.getElementById('turn-indicator');
 
+    // We store previous states here to allow "undo".
     let historyStack = [];
+
+    // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
 
     /********************************************************************
@@ -251,16 +256,16 @@
       initBoard();
       initSupplies();
       currentPlayer = 1;
-      updateTurnIndicator();
+      selectedPiece = null;
+      selectedElement = null;
       historyStack = [];
 
-      renderAll();
-      saveHistory();
-    }
-
-    function renderAll() {
       renderBoard();
       renderSupplies();
+      updateTurnIndicator();
+
+      // Save initial state
+      saveHistory();
     }
 
     function renderBoard() {
@@ -270,18 +275,17 @@
           const squareDiv = document.createElement('div');
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
+          squareDiv.onclick = (event) => handleSquareClick(r, c, event);
 
-          const stack = board[r][c];
+          let stack = board[r][c];
           if (stack.length > 0) {
-            // top piece
             const topPiece = stack[stack.length - 1];
-            const pieceEl = createPieceElement(topPiece, /* fromBoard= */true);
-            // center it in the square
-            pieceEl.style.top = '50%';
-            pieceEl.style.left = '50%';
-            // For dragging
-            pieceEl.onmousedown = (e) => startDragFromBoard(e, topPiece, r, c);
-            squareDiv.appendChild(pieceEl);
+            const pieceDiv = createPieceDiv(topPiece);
+            pieceDiv.style.position = 'absolute';
+            pieceDiv.style.top = '50%';
+            pieceDiv.style.left = '50%';
+            pieceDiv.style.transform = 'translate(-50%, -50%)';
+            squareDiv.appendChild(pieceDiv);
           }
           boardEl.appendChild(squareDiv);
         }
@@ -292,35 +296,30 @@
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
 
+      // Render the supply for player 1
       player1Pieces.forEach(piece => {
         if (!piece.used) {
-          const el = createPieceElement(piece, /* fromBoard= */ false);
-          el.onmousedown = (e) => startDragFromSupply(e, piece);
-          player1SupplyEl.appendChild(el);
+          const div = createPieceDiv(piece);
+          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
+          player1SupplyEl.appendChild(div);
         }
       });
+
+      // Render the supply for player 2
       player2Pieces.forEach(piece => {
         if (!piece.used) {
-          const el = createPieceElement(piece, false);
-          el.onmousedown = (e) => startDragFromSupply(e, piece);
-          player2SupplyEl.appendChild(el);
+          const div = createPieceDiv(piece);
+          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
+          player2SupplyEl.appendChild(div);
         }
       });
     }
 
-    function createPieceElement(piece, fromBoard) {
-      // fromBoard => piece is placed in the board, so absolute + centered
-      // otherwise => piece is in the supply
-      const el = document.createElement('div');
-      el.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
-
-      if (fromBoard) {
-        el.classList.add('piece-board');
-      } else {
-        el.classList.add('piece-supply');
-      }
-      el.textContent = piece.size;
-      return el;
+    function createPieceDiv(piece) {
+      const div = document.createElement('div');
+      div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
+      div.textContent = piece.size;
+      return div;
     }
 
     function updateTurnIndicator() {
@@ -328,140 +327,102 @@
     }
 
     /********************************************************************
-     * DRAG & DROP LOGIC
+     * SELECTION / HIGHLIGHT
      ********************************************************************/
-    function startDragFromSupply(e, piece) {
+    function highlightElement(el) {
+      // remove highlight from any previously selected
+      if (selectedElement) {
+        selectedElement.classList.remove('selected');
+      }
+      selectedElement = el;
+      if (selectedElement) {
+        selectedElement.classList.add('selected');
+      }
+    }
+
+    /********************************************************************
+     * HUMAN MOVES
+     ********************************************************************/
+    function pickUpFromSupply(piece, pieceEl) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
         return;
       }
-      beginDrag(e, {
+      if (selectedPiece) {
+        alert('You already have a piece in hand. Place it first or reselect.');
+        return;
+      }
+      // highlight the supply piece
+      highlightElement(pieceEl);
+
+      selectedPiece = {
         id: piece.id,
         player: piece.player,
         size: piece.size,
         from: 'supply'
-      });
+      };
     }
 
-    function startDragFromBoard(e, piece, r, c) {
-      if (piece.player !== currentPlayer) {
-        alert(`Top piece belongs to Player ${piece.player}, not you!`);
+    function handleSquareClick(r, c, evt) {
+      let stack = board[r][c];
+      const squareDiv = evt.currentTarget;
+
+      if (!selectedPiece) {
+        // Attempt to pick up from the board
+        if (stack.length === 0) {
+          alert('No piece here to pick up.');
+          return;
+        }
+        const topPiece = stack[stack.length - 1];
+        if (topPiece.player !== currentPlayer) {
+          alert(`Top piece belongs to Player ${topPiece.player}, not you!`);
+          return;
+        }
+        stack.pop();
+        selectedPiece = {
+          id: topPiece.id,
+          player: topPiece.player,
+          size: topPiece.size,
+          from: 'board',
+          row: r,
+          col: c
+        };
+        highlightElement(squareDiv);
+        renderBoard();
         return;
       }
-      board[r][c].pop(); // remove from board so it disappears
-      originSquare = {r, c};
-      renderBoard(); // re-render so the piece is removed visually
 
-      beginDrag(e, {
-        id: piece.id,
-        player: piece.player,
-        size: piece.size,
-        from: 'board'
-      });
-    }
-
-    function beginDrag(e, pieceInfo) {
-      e.preventDefault();
-      if (draggingPiece) return;
-
-      draggingPiece = pieceInfo;
-      // create ghost
-      draggingElement = document.createElement('div');
-      draggingElement.className = `piece drag-ghost player${pieceInfo.player} size${pieceInfo.size}`;
-      draggingElement.textContent = pieceInfo.size;
-      document.body.appendChild(draggingElement);
-
-      positionGhost(e.pageX, e.pageY);
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    }
-
-    function onMouseMove(e) {
-      if (!draggingElement) return;
-      positionGhost(e.pageX, e.pageY);
-    }
-
-    function onMouseUp(e) {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-
-      if (!draggingPiece) return;
-      const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
-      if (dropTarget && dropTarget.classList.contains('square')) {
-        const [r, c] = parseSquareId(dropTarget.id);
-        if (canPlacePiece(r, c, draggingPiece)) {
-          placePiece(r, c, draggingPiece);
-          cleanupDrag();
-          return;
-        } else {
-          alert("Can't place here: piece is too small or invalid move.");
-        }
-      }
-      // revert
-      revertDraggingPiece();
-      cleanupDrag();
-    }
-
-    function cleanupDrag() {
-      if (draggingElement && draggingElement.parentNode) {
-        draggingElement.parentNode.removeChild(draggingElement);
-      }
-      draggingElement = null;
-      draggingPiece = null;
-      originSquare = null;
-    }
-
-    function positionGhost(x, y) {
-      if (!draggingElement) return;
-      draggingElement.style.left = (x - draggingElement.offsetWidth / 2) + 'px';
-      draggingElement.style.top = (y - draggingElement.offsetHeight / 2) + 'px';
-    }
-
-    function parseSquareId(id) {
-      // id = "square-r-c"
-      const parts = id.split('-');
-      return [ parseInt(parts[1]), parseInt(parts[2]) ];
-    }
-
-    function canPlacePiece(r, c, pieceInfo) {
-      let stack = board[r][c];
+      // We have a piece in hand => place it
       if (stack.length > 0) {
-        let topPiece = stack[stack.length - 1];
-        if (pieceInfo.size <= topPiece.size) {
-          return false;
+        const topPiece = stack[stack.length - 1];
+        if (selectedPiece.size <= topPiece.size) {
+          alert(`Your piece is too small to cover size ${topPiece.size}.`);
+          return;
         }
       }
-      return true;
-    }
-
-    function placePiece(r, c, pieceInfo) {
-      if (pieceInfo.from === 'supply') {
-        if (pieceInfo.player === 1) {
-          const p = player1Pieces.find(x => x.id === pieceInfo.id);
-          if (p) p.used = true;
-        } else {
-          const p = player2Pieces.find(x => x.id === pieceInfo.id);
-          if (p) p.used = true;
-        }
-      }
-      board[r][c].push({
-        player: pieceInfo.player,
-        size: pieceInfo.size,
-        id: pieceInfo.id
+      // Place the piece
+      stack.push({
+        player: selectedPiece.player,
+        size: selectedPiece.size,
+        id: selectedPiece.id
       });
+      if (selectedPiece.from === 'supply') markPieceUsed(selectedPiece);
 
-      renderAll();
-      // Wait a frame so piece is visible
+      highlightElement(null); // done highlighting
+      renderBoard();
+      renderSupplies();
+
+      // Show piece, then check for win
       window.requestAnimationFrame(() => {
-        if (checkWin(pieceInfo.player)) {
-          alert(`Player ${pieceInfo.player} wins!`);
+        if (checkWin(selectedPiece.player)) {
+          alert(`Player ${selectedPiece.player} wins!`);
           disableAllMoves();
         } else {
-          if (pieceInfo.player === currentPlayer) {
-            currentPlayer = (currentPlayer === 1 ? 2 : 1);
-          }
+          selectedPiece = null;
+          currentPlayer = (currentPlayer === 1 ? 2 : 1);
           updateTurnIndicator();
           saveHistory();
+
           if (currentPlayer === 2) {
             startBotTurn();
           }
@@ -469,29 +430,28 @@
       });
     }
 
-    function revertDraggingPiece() {
-      if (!draggingPiece) return;
-      if (draggingPiece.from === 'board' && originSquare) {
-        board[originSquare.r][originSquare.c].push({
-          player: draggingPiece.player,
-          size: draggingPiece.size,
-          id: draggingPiece.id
-        });
+    function markPieceUsed(sel) {
+      if (sel.player === 1) {
+        const p = player1Pieces.find(p => p.id === sel.id);
+        if (p) p.used = true;
+      } else {
+        const p = player2Pieces.find(p => p.id === sel.id);
+        if (p) p.used = true;
       }
-      renderAll();
     }
 
     /********************************************************************
-     * BOT TURN
+     * BOT MOVES
      ********************************************************************/
     function startBotTurn() {
-      let state = {
+      const state = {
         board: board,
         supply1: player1Pieces,
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
       botWorker.postMessage({ state: state, timeLimit: 10 });
+
       botWorker.onmessage = function(e) {
         const { move, error } = e.data;
         if (error) {
@@ -505,20 +465,23 @@
     }
 
     function applyBotMove(move) {
-      if (move.type === 'supply') {
-        let supply = (move.piece.player === 1) ? player1Pieces : player2Pieces;
-        let p = supply.find(x => x.id === move.piece.id);
+      if (move.type === "supply") {
+        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+        const p = supply.find(p => p.id === move.piece.id);
         if (p) p.used = true;
-      } else if (move.type === 'board') {
-        let st = board[move.from[0]][move.from[1]];
-        if (st.length > 0) st.pop();
+      } else if (move.type === "board") {
+        let stack = board[move.from[0]][move.from[1]];
+        if (stack.length > 0) stack.pop();
       }
       board[move.to[0]][move.to[1]].push({
         player: move.piece.player,
         size: move.piece.size,
         id: move.piece.id
       });
-      renderAll();
+
+      renderBoard();
+      renderSupplies();
+
       window.requestAnimationFrame(() => {
         if (checkWin(move.piece.player)) {
           alert(`Player ${move.piece.player} wins!`);
@@ -549,7 +512,7 @@
       }
       // check cols
       for (let c = 0; c < COLS; c++) {
-        let colVals = [];
+        const colVals = [];
         for (let r = 0; r < ROWS; r++) {
           colVals.push(topGrid[r][c]);
         }
@@ -565,31 +528,22 @@
     }
 
     function disableAllMoves() {
-      // remove mousedown from supply pieces
-      let supplyPieces = player1SupplyEl.querySelectorAll('.piece-supply');
-      supplyPieces.forEach(el => el.onmousedown = null);
-      supplyPieces = player2SupplyEl.querySelectorAll('.piece-supply');
-      supplyPieces.forEach(el => el.onmousedown = null);
-
-      // remove from board pieces
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-          let sq = document.getElementById(`square-${r}-${c}`);
-          if (sq) {
-            let child = sq.querySelector('.piece-board');
-            if (child) {
-              child.onmousedown = null;
-            }
-          }
+          const squareDiv = document.getElementById(`square-${r}-${c}`);
+          if (squareDiv) squareDiv.onclick = null;
         }
       }
+      player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
+      player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
 
     /********************************************************************
-     * UNDO
+     * UNDO FUNCTIONALITY
      ********************************************************************/
     function saveHistory() {
-      let stateObj = {
+      // Store a deep clone of the game state
+      const stateObj = {
         board: JSON.parse(JSON.stringify(board)),
         player1Pieces: JSON.parse(JSON.stringify(player1Pieces)),
         player2Pieces: JSON.parse(JSON.stringify(player2Pieces)),
@@ -600,22 +554,28 @@
 
     function undoLastMove() {
       if (historyStack.length <= 1) {
-        alert('No moves to undo!');
+        alert("No moves to undo!");
         return;
       }
+      // pop current
       historyStack.pop();
+      // revert to previous
       let prevState = historyStack[historyStack.length - 1];
       board = JSON.parse(JSON.stringify(prevState.board));
-      player1Pieces.splice(0, player1Pieces.length, ...prevState.player1Pieces);
-      player2Pieces.splice(0, player2Pieces.length, ...prevState.player2Pieces);
+      player1Pieces.splice(0, player1Pieces.length, ...JSON.parse(JSON.stringify(prevState.player1Pieces)));
+      player2Pieces.splice(0, player2Pieces.length, ...JSON.parse(JSON.stringify(prevState.player2Pieces)));
       currentPlayer = prevState.currentPlayer;
 
-      renderAll();
+      selectedPiece = null;
+      highlightElement(null); // remove any highlight
+
+      renderBoard();
+      renderSupplies();
       updateTurnIndicator();
     }
 
     /********************************************************************
-     * EVENTS
+     * MUSIC / EVENT LISTENERS
      ********************************************************************/
     resetBtn.addEventListener('click', initGame);
     undoBtn.addEventListener('click', undoLastMove);
