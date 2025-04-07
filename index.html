@@ -102,7 +102,7 @@
       position: relative;
     }
     /* SIZE-BASED SHADING:
-       Larger sizes = darker (lower brightness) */
+       Larger sizes => darker (lower brightness) */
     .size1 {
       width: 35px; height: 35px; font-size: 0.75em;
       filter: brightness(100%);
@@ -180,7 +180,7 @@
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;  // Player 1 is human, Player 2 is bot
+    let currentPlayer = 1;  // Player 1 = human, Player 2 = bot
     let selectedPiece = null;
 
     const boardEl = document.getElementById('board');
@@ -192,14 +192,14 @@
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
 
-    // We store prior states here to allow "undo":
+    // We store previous states here to allow "undo".
     let historyStack = [];
 
     // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
 
     /********************************************************************
-     * INIT FUNCTIONS
+     * INIT / RENDER
      ********************************************************************/
     function initBoard() {
       board = [];
@@ -239,18 +239,17 @@
     function initGame() {
       initBoard();
       initSupplies();
-      renderBoard();
-      renderSupplies();
       currentPlayer = 1;
       selectedPiece = null;
-      historyStack = []; // clear history on reset
-      // We'll save the initial state so we can revert to it if needed
+      historyStack = [];
+
+      renderBoard();
+      renderSupplies();
+
+      // Save initial state
       saveHistory();
     }
 
-    /********************************************************************
-     * RENDERING
-     ********************************************************************/
     function renderBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < ROWS; r++) {
@@ -294,16 +293,18 @@
       });
     }
 
+    // Show size number on the circle
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
+      // Put the size inside the circle
+      div.textContent = piece.size;
       return div;
     }
 
     /********************************************************************
-     * HANDLING MOVES
+     * HUMAN MOVES
      ********************************************************************/
-    // -- HUMAN PICKING FROM SUPPLY --
     function pickUpFromSupply(piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -321,11 +322,10 @@
       };
     }
 
-    // -- HUMAN CLICKING A BOARD SQUARE --
     function handleSquareClick(r, c) {
       let stack = board[r][c];
-      // If we haven't picked a piece up yet, see if we can pick from the board
       if (!selectedPiece) {
+        // Attempt to pick up from the board
         if (stack.length === 0) {
           alert('No piece here to pick up.');
           return;
@@ -337,7 +337,7 @@
         }
         stack.pop();
         selectedPiece = {
-          id: topPiece.id || null,
+          id: topPiece.id,
           player: topPiece.player,
           size: topPiece.size,
           from: 'board',
@@ -347,7 +347,7 @@
         renderBoard();
         return;
       }
-      // We have a piece selected; let's place it on the board
+      // We have a piece in hand => place it
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
@@ -361,29 +361,29 @@
         size: selectedPiece.size,
         id: selectedPiece.id
       });
-      // If it was from supply, mark it used
       if (selectedPiece.from === 'supply') markPieceUsed(selectedPiece);
+
       renderBoard();
       renderSupplies();
 
-      // Check if game is won
-      if (checkWin(selectedPiece.player)) {
-        alert(`Player ${selectedPiece.player} wins!`);
-        disableAllMoves();
-        return;
-      }
+      // Now that the piece is shown, do the win check in the next animation frame
+      window.requestAnimationFrame(() => {
+        if (checkWin(selectedPiece.player)) {
+          alert(`Player ${selectedPiece.player} wins!`);
+          disableAllMoves();
+        } else {
+          // If no win => next turn
+          selectedPiece = null;
+          currentPlayer = (currentPlayer === 1 ? 2 : 1);
 
-      // Move complete => next player's turn
-      selectedPiece = null;
-      currentPlayer = (currentPlayer === 1 ? 2 : 1);
+          // Save state after the user move
+          saveHistory();
 
-      // Save game state after the human move
-      saveHistory();
-
-      if (currentPlayer === 2) {
-        // If bot's turn, let the bot move
-        startBotTurn();
-      }
+          if (currentPlayer === 2) {
+            startBotTurn();
+          }
+        }
+      });
     }
 
     function markPieceUsed(sel) {
@@ -396,7 +396,9 @@
       }
     }
 
-    // -- BOT TURN --
+    /********************************************************************
+     * BOT MOVES
+     ********************************************************************/
     function startBotTurn() {
       const state = {
         board: board,
@@ -404,11 +406,8 @@
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
-
-      // Post message to worker
       botWorker.postMessage({ state: state, timeLimit: 10 });
 
-      // When the worker responds with a move, apply it
       botWorker.onmessage = function(e) {
         const { move, error } = e.data;
         if (error) {
@@ -422,16 +421,14 @@
     }
 
     function applyBotMove(move) {
-      // If from supply, mark used
       if (move.type === "supply") {
-        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+        const supply = (move.piece.player === 1) ? player1Pieces : player2Pieces;
         const p = supply.find(p => p.id === move.piece.id);
         if (p) p.used = true;
       } else if (move.type === "board") {
         let stack = board[move.from[0]][move.from[1]];
         if (stack.length > 0) stack.pop();
       }
-
       board[move.to[0]][move.to[1]].push({
         player: move.piece.player,
         size: move.piece.size,
@@ -441,23 +438,23 @@
       renderBoard();
       renderSupplies();
 
-      // Check win
-      if (checkWin(move.piece.player)) {
-        alert(`Player ${move.piece.player} wins!`);
-        disableAllMoves();
-        return;
-      }
-
-      currentPlayer = 1;
-      // Save game state after the bot move
-      saveHistory();
+      // Do the win check after a small delay so the piece is shown
+      window.requestAnimationFrame(() => {
+        if (checkWin(move.piece.player)) {
+          alert(`Player ${move.piece.player} wins!`);
+          disableAllMoves();
+        } else {
+          currentPlayer = 1;
+          // Save state after the bot move
+          saveHistory();
+        }
+      });
     }
 
     /********************************************************************
-     * WIN / DISABLE
+     * WIN CHECK / DISABLE
      ********************************************************************/
     function checkWin(player) {
-      // Just a simple check (like your existing one):
       let topGrid = [];
       for (let r = 0; r < ROWS; r++) {
         topGrid[r] = [];
@@ -500,7 +497,7 @@
      * UNDO FUNCTIONALITY
      ********************************************************************/
     function saveHistory() {
-      // Store a deep clone of game state
+      // Store a deep clone of the game state
       const stateObj = {
         board: JSON.parse(JSON.stringify(board)),
         player1Pieces: JSON.parse(JSON.stringify(player1Pieces)),
@@ -511,17 +508,15 @@
     }
 
     function undoLastMove() {
-      // We want to revert to the previous state => pop from historyStack
       if (historyStack.length <= 1) {
         alert("No moves to undo!");
         return;
       }
-      // Pop current state
+      // pop current
       historyStack.pop();
-      // Restore previous
+      // revert to previous
       let prevState = historyStack[historyStack.length - 1];
       board = JSON.parse(JSON.stringify(prevState.board));
-      // Overwrite array contents
       player1Pieces.splice(0, player1Pieces.length, ...JSON.parse(JSON.stringify(prevState.player1Pieces)));
       player2Pieces.splice(0, player2Pieces.length, ...JSON.parse(JSON.stringify(prevState.player2Pieces)));
       currentPlayer = prevState.currentPlayer;
@@ -531,7 +526,7 @@
     }
 
     /********************************************************************
-     * MUSIC CONTROLS AND EVENT LISTENERS
+     * MUSIC / EVENT LISTENERS
      ********************************************************************/
     resetBtn.addEventListener('click', initGame);
     undoBtn.addEventListener('click', undoLastMove);
