@@ -227,13 +227,12 @@ def evaluate(engine):
     # 2. Mobility: number of legal moves for each side
     current_mobility = len(engine.generate_moves())
     # We can simulate flipping the player to see opponent mobility quickly:
-    # (Make a shallow copy, just switch current_player, then generate moves)
     opp_engine = copy.deepcopy(engine)
     opp_engine.current_player = opponent
     opponent_mobility = len(opp_engine.generate_moves())
     mobility_factor = current_mobility - opponent_mobility
 
-    # 3. Potential lines (like we did before)
+    # 3. Potential lines
     lines_for_current = 0
     lines_for_opponent = 0
 
@@ -250,14 +249,17 @@ def evaluate(engine):
 
     for line in all_lines:
         owners = [top_grid[r][c] for (r,c) in line]
+        # "If no opponent piece is on top, but at least one current_player piece is, it's potentially ours"
         if opponent not in owners and any(p == current_player for p in owners):
             lines_for_current += 1
+        # Conversely for the opponent
         if current_player not in owners and any(p == opponent for p in owners):
             lines_for_opponent += 1
+
     line_factor = (lines_for_current - lines_for_opponent) * 2
 
-    # Combine the factors
-    # We can weigh them differently to taste
+    # Combine factors
+    # Tune these multipliers to your taste
     score = (5 * size_factor) + (3 * mobility_factor) + (3 * line_factor)
 
     return score
@@ -270,9 +272,8 @@ def evaluate(engine):
 def order_moves(moves, engine):
     """
     Sort moves in a way that likely puts more promising moves first:
-      - from supply bigger pieces first
-      - from board bigger piece capturing smaller piece first
-    This is very naive but can help alpha-beta.
+      - from supply: bigger pieces first
+      - from board: bigger piece capturing smaller piece first
     """
     def move_value(m):
         if m['type'] == 'supply':
@@ -285,7 +286,7 @@ def order_moves(moves, engine):
             capture_val = 0
             if board_stack:
                 top_piece = board_stack[-1]
-                # if we are capturing smaller or equal, that is good
+                # capturing bigger is not possible, but capturing smaller is good
                 capture_val = top_piece['size']
             # Also weigh the piece we are moving
             return m['piece']['size'] + capture_val
@@ -297,7 +298,7 @@ def order_moves(moves, engine):
 #          ITERATIVE DEEPENING ALPHA-BETA
 ####################################################
 
-TRANS_TABLE = {}  # global or external dictionary for caching: { (state_hash, depth, alpha, beta) : (score, best_move) }
+TRANS_TABLE = {}  # { (state_hash, depth, alpha, beta) : (score, best_move) }
 
 def alpha_beta(engine, depth, alpha, beta, start_time, end_time):
     """
@@ -306,16 +307,15 @@ def alpha_beta(engine, depth, alpha, beta, start_time, end_time):
     """
     # Time check
     if time.time() >= end_time:
-        # Return a static evaluation right away, no move
+        # Return a static evaluation (no best_move) if out of time
         return evaluate(engine), None
 
     if depth == 0 or is_terminal_state(engine):
         return evaluate(engine), None
 
-    # Check the transposition table
+    # Check transposition table
     state_key = (hash_state(engine), depth, alpha, beta)
     if state_key in TRANS_TABLE:
-        # We have a cached result
         cached_score, cached_move = TRANS_TABLE[state_key]
         return cached_score, cached_move
 
@@ -329,20 +329,14 @@ def alpha_beta(engine, depth, alpha, beta, start_time, end_time):
     # Move ordering
     moves = order_moves(moves, engine)
 
-    maximizing_player = engine.current_player  # just for clarity
     best_score = -float('inf')
     best_move = moves[0]  # default
 
     for move in moves:
         child = engine.apply_move(move)
-        # Minimizing from child's POV if we keep evaluation from the perspective of 'engine.current_player'?
-        # Actually, our evaluate always returns score relative to "child.current_player" being the next mover.
-        # One way: we can do a negative if we want to keep the perspective. But simpler: we keep toggling the perspective.
-        # We'll do a quick approach:  we do alpha_beta of child with depth-1. That child's perspective is "child.current_player".
-        # But we want "current player's" perspective. We'll invert the sign if needed:
+        # Recurse with swapped alpha/beta and negative score to keep perspective
         score, _ = alpha_beta(child, depth - 1, -beta, -alpha, start_time, end_time)
-        # Because the roles swapped, invert
-        score = -score
+        score = -score  # invert
 
         if score > best_score:
             best_score = score
@@ -360,9 +354,8 @@ def alpha_beta(engine, depth, alpha, beta, start_time, end_time):
 
 def iterative_deepening(engine, max_time=20.0):
     """
-    Iterative deepening to fill about 20 seconds.
-    We'll keep track of the best move found so far.
-    We'll go depth = 1..N until time runs out.
+    Iterative deepening up to ~max_time seconds.
+    We'll try depth=1,2,3,... until time is up, caching results.
     """
     global TRANS_TABLE
     TRANS_TABLE.clear()
@@ -376,14 +369,19 @@ def iterative_deepening(engine, max_time=20.0):
     while True:
         if time.time() >= end_time:
             break
+
         score, move = alpha_beta(engine, depth, -float('inf'), float('inf'), start_time, end_time)
+
+        # if time's up in the middle of alpha-beta, we'll just break
         if time.time() >= end_time:
             break
+
         if move is not None:
             best_move = move
             best_score = score
+
         depth += 1
-        # If we found a "winning" move, we can consider stopping
+        # If we found a "winning" move, might as well stop
         if best_score and best_score >= 1000000:
             break
 
@@ -396,7 +394,7 @@ def iterative_deepening(engine, max_time=20.0):
 
 def get_move(engine, max_time=20.0):
     """
-    Will think up to about `max_time` seconds using iterative deepening alpha-beta.
+    Will think up to `max_time` seconds using iterative deepening alpha-beta.
     Returns the best move found within that time.
     """
     print(f"AI thinking for up to ~{max_time} seconds...")
@@ -405,25 +403,30 @@ def get_move(engine, max_time=20.0):
     return move
 
 
-
 ####################################################
 #       CREATE ENGINE FROM STATE (if needed)
 ####################################################
 
 def create_engine_from_state(state):
+    """
+    Utility to construct the GobbletEngine from a dictionary 'state',
+    which must have:
+      state['board']
+      state['supply1']
+      state['supply2']
+      state['currentPlayer']
+    """
     board = state['board']
     supply1 = state['supply1']
     supply2 = state['supply2']
     current_player = state['currentPlayer']
     return GobbletEngine(board, supply1, supply2, current_player)
 
-
 ####################################################
 #               DEMO / TEST
 ####################################################
 
 if __name__ == '__main__':
-    # Example usage / quick test
     board = [[[] for _ in range(4)] for _ in range(4)]
     
     def create_supply(player):
@@ -445,5 +448,5 @@ if __name__ == '__main__':
 
     engine = GobbletEngine(board, supply1, supply2, current_player=1)
 
-    move_chosen = get_move(engine)
+    move_chosen = get_move(engine, max_time=10)
     print("Move chosen by AI:", move_chosen)
