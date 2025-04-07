@@ -23,7 +23,7 @@ self.onmessage = async function(e) {
 import json
 state = json.loads('${JSON.stringify(state)}')
 engine = create_engine_from_state(state)
-move = get_move(engine, ${timeLimit})
+move = get_move(engine, 10);
 json.dumps(move)
 `;
   try {
