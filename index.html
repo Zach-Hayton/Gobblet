@@ -101,10 +101,25 @@
       font-weight: bold;
       position: relative;
     }
-    .size1 { width: 35px; height: 35px; font-size: 0.75em; }
-    .size2 { width: 45px; height: 45px; font-size: 0.85em; }
-    .size3 { width: 55px; height: 55px; font-size: 1em; }
-    .size4 { width: 65px; height: 65px; font-size: 1.1em; }
+    /* SIZE-BASED SHADING:
+       Larger sizes = darker (lower brightness) */
+    .size1 {
+      width: 35px; height: 35px; font-size: 0.75em;
+      filter: brightness(100%);
+    }
+    .size2 {
+      width: 45px; height: 45px; font-size: 0.85em;
+      filter: brightness(90%);
+    }
+    .size3 {
+      width: 55px; height: 55px; font-size: 1em;
+      filter: brightness(80%);
+    }
+    .size4 {
+      width: 65px; height: 65px; font-size: 1.1em;
+      filter: brightness(70%);
+    }
+    /* Player Colors */
     .player1 { background: #e74c3c; }
     .player2 { background: #3498db; }
     .controls {
@@ -151,12 +166,15 @@
   </div>
   <div class="controls">
     <button id="reset-btn">Reset Game</button>
+    <button id="undo-btn">Undo</button>
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
   </div>
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
   <script>
-    // Global game variables
+    /********************************************************************
+     * GLOBALS AND DOM ELEMENTS
+     ********************************************************************/
     let board = [];
     const ROWS = 4;
     const COLS = 4;
@@ -164,18 +182,25 @@
     const player2Pieces = [];
     let currentPlayer = 1;  // Player 1 is human, Player 2 is bot
     let selectedPiece = null;
+
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
     const player2SupplyEl = document.getElementById('player2-supply');
     const resetBtn = document.getElementById('reset-btn');
+    const undoBtn = document.getElementById('undo-btn');
     const bgMusic = document.getElementById('bg-music');
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
-    
+
+    // We store prior states here to allow "undo":
+    let historyStack = [];
+
     // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
-    
-    // Game initialization and rendering functions
+
+    /********************************************************************
+     * INIT FUNCTIONS
+     ********************************************************************/
     function initBoard() {
       board = [];
       for (let r = 0; r < ROWS; r++) {
@@ -185,12 +210,13 @@
         }
       }
     }
-    
+
     function initSupplies() {
       player1Pieces.length = 0;
       player2Pieces.length = 0;
       let idCounter1 = 1;
       let idCounter2 = 1;
+
       function addPiecesForPlayer(player, size) {
         for (let i = 0; i < 3; i++) {
           let piece = {
@@ -203,12 +229,28 @@
           else player2Pieces.push(piece);
         }
       }
+
       [1,2,3,4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
       });
     }
-    
+
+    function initGame() {
+      initBoard();
+      initSupplies();
+      renderBoard();
+      renderSupplies();
+      currentPlayer = 1;
+      selectedPiece = null;
+      historyStack = []; // clear history on reset
+      // We'll save the initial state so we can revert to it if needed
+      saveHistory();
+    }
+
+    /********************************************************************
+     * RENDERING
+     ********************************************************************/
     function renderBoard() {
       boardEl.innerHTML = '';
       for (let r = 0; r < ROWS; r++) {
@@ -217,6 +259,7 @@
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
           squareDiv.onclick = () => handleSquareClick(r, c);
+
           let stack = board[r][c];
           if (stack.length > 0) {
             const topPiece = stack[stack.length - 1];
@@ -231,7 +274,7 @@
         }
       }
     }
-    
+
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
@@ -250,14 +293,17 @@
         }
       });
     }
-    
+
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
       return div;
     }
-    
-    // Player interaction functions
+
+    /********************************************************************
+     * HANDLING MOVES
+     ********************************************************************/
+    // -- HUMAN PICKING FROM SUPPLY --
     function pickUpFromSupply(piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -274,9 +320,11 @@
         from: 'supply'
       };
     }
-    
+
+    // -- HUMAN CLICKING A BOARD SQUARE --
     function handleSquareClick(r, c) {
       let stack = board[r][c];
+      // If we haven't picked a piece up yet, see if we can pick from the board
       if (!selectedPiece) {
         if (stack.length === 0) {
           alert('No piece here to pick up.');
@@ -299,6 +347,7 @@
         renderBoard();
         return;
       }
+      // We have a piece selected; let's place it on the board
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
@@ -306,26 +355,37 @@
           return;
         }
       }
+      // Place the piece
       stack.push({
         player: selectedPiece.player,
         size: selectedPiece.size,
         id: selectedPiece.id
       });
+      // If it was from supply, mark it used
       if (selectedPiece.from === 'supply') markPieceUsed(selectedPiece);
       renderBoard();
       renderSupplies();
+
+      // Check if game is won
       if (checkWin(selectedPiece.player)) {
         alert(`Player ${selectedPiece.player} wins!`);
         disableAllMoves();
         return;
       }
+
+      // Move complete => next player's turn
       selectedPiece = null;
-      currentPlayer = currentPlayer === 1 ? 2 : 1;
+      currentPlayer = (currentPlayer === 1 ? 2 : 1);
+
+      // Save game state after the human move
+      saveHistory();
+
       if (currentPlayer === 2) {
+        // If bot's turn, let the bot move
         startBotTurn();
       }
     }
-    
+
     function markPieceUsed(sel) {
       if (sel.player === 1) {
         const p = player1Pieces.find(p => p.id === sel.id);
@@ -335,7 +395,96 @@
         if (p) p.used = true;
       }
     }
-    
+
+    // -- BOT TURN --
+    function startBotTurn() {
+      const state = {
+        board: board,
+        supply1: player1Pieces,
+        supply2: player2Pieces,
+        currentPlayer: currentPlayer
+      };
+
+      // Post message to worker
+      botWorker.postMessage({ state: state, timeLimit: 10 });
+
+      // When the worker responds with a move, apply it
+      botWorker.onmessage = function(e) {
+        const { move, error } = e.data;
+        if (error) {
+          console.error("Bot error:", error);
+          return;
+        }
+        if (move) {
+          applyBotMove(move);
+        }
+      };
+    }
+
+    function applyBotMove(move) {
+      // If from supply, mark used
+      if (move.type === "supply") {
+        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+        const p = supply.find(p => p.id === move.piece.id);
+        if (p) p.used = true;
+      } else if (move.type === "board") {
+        let stack = board[move.from[0]][move.from[1]];
+        if (stack.length > 0) stack.pop();
+      }
+
+      board[move.to[0]][move.to[1]].push({
+        player: move.piece.player,
+        size: move.piece.size,
+        id: move.piece.id
+      });
+
+      renderBoard();
+      renderSupplies();
+
+      // Check win
+      if (checkWin(move.piece.player)) {
+        alert(`Player ${move.piece.player} wins!`);
+        disableAllMoves();
+        return;
+      }
+
+      currentPlayer = 1;
+      // Save game state after the bot move
+      saveHistory();
+    }
+
+    /********************************************************************
+     * WIN / DISABLE
+     ********************************************************************/
+    function checkWin(player) {
+      // Just a simple check (like your existing one):
+      let topGrid = [];
+      for (let r = 0; r < ROWS; r++) {
+        topGrid[r] = [];
+        for (let c = 0; c < COLS; c++) {
+          let stack = board[r][c];
+          topGrid[r][c] = (stack.length > 0) ? stack[stack.length - 1].player : 0;
+        }
+      }
+      // check rows
+      for (let r = 0; r < ROWS; r++) {
+        if (topGrid[r].every(p => p === player)) return true;
+      }
+      // check cols
+      for (let c = 0; c < COLS; c++) {
+        let colVals = [];
+        for (let r = 0; r < ROWS; r++) colVals.push(topGrid[r][c]);
+        if (colVals.every(p => p === player)) return true;
+      }
+      // diag1
+      let diag1 = [topGrid[0][0], topGrid[1][1], topGrid[2][2], topGrid[3][3]];
+      if (diag1.every(p => p === player)) return true;
+      // diag2
+      let diag2 = [topGrid[0][3], topGrid[1][2], topGrid[2][1], topGrid[3][0]];
+      if (diag2.every(p => p === player)) return true;
+      return false;
+    }
+
     function disableAllMoves() {
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -346,93 +495,49 @@
       player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
       player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
-    
-    function checkWin(player) {
-      let topGrid = [];
-      for (let r = 0; r < ROWS; r++) {
-        topGrid[r] = [];
-        for (let c = 0; c < COLS; c++) {
-          let stack = board[r][c];
-          topGrid[r][c] = stack.length > 0 ? stack[stack.length - 1].player : 0;
-        }
-      }
-      for (let r = 0; r < ROWS; r++) {
-        if (topGrid[r].every(p => p === player)) return true;
-      }
-      for (let c = 0; c < COLS; c++) {
-        const colVals = [];
-        for (let r = 0; r < ROWS; r++) {
-          colVals.push(topGrid[r][c]);
-        }
-        if (colVals.every(p => p === player)) return true;
-      }
-      let diag1 = [topGrid[0][0], topGrid[1][1], topGrid[2][2], topGrid[3][3]];
-      if (diag1.every(p => p === player)) return true;
-      let diag2 = [topGrid[0][3], topGrid[1][2], topGrid[2][1], topGrid[3][0]];
-      if (diag2.every(p => p === player)) return true;
-      return false;
-    }
-    
-    // Bot turn: send current state to the worker and let Python pick a random legal move.
-    function startBotTurn() {
-      const state = {
-        board: board,
-        supply1: player1Pieces,
-        supply2: player2Pieces,
-        currentPlayer: currentPlayer
+
+    /********************************************************************
+     * UNDO FUNCTIONALITY
+     ********************************************************************/
+    function saveHistory() {
+      // Store a deep clone of game state
+      const stateObj = {
+        board: JSON.parse(JSON.stringify(board)),
+        player1Pieces: JSON.parse(JSON.stringify(player1Pieces)),
+        player2Pieces: JSON.parse(JSON.stringify(player2Pieces)),
+        currentPlayer
       };
-      botWorker.postMessage({ state: state, timeLimit: 10 });
-      botWorker.onmessage = function(e) {
-        const { move, error } = e.data;
-        if (error) {
-          console.error("Bot error:", error);
-          return;
-        }
-        if (move) {
-          console.log("Bot move received:", move);
-          applyBotMove(move);
-        }
-      };
+      historyStack.push(stateObj);
     }
-    
-    function applyBotMove(move) {
-  if (move.type === "supply") {
-    const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
-    const p = supply.find(p => p.id === move.piece.id);
-    if (p) p.used = true;
-  } else if (move.type === "board") {
-    // Use array indices since Python returns coordinates as arrays.
-    let stack = board[move.from[0]][move.from[1]];
-    if (stack.length > 0) stack.pop();
-  }
-  // Access move.to as an array.
-  board[move.to[0]][move.to[1]].push({
-    player: move.piece.player,
-    size: move.piece.size,
-    id: move.piece.id
-  });
-  renderBoard();
-  renderSupplies();
-  if (checkWin(move.piece.player)) {
-    alert(`Player ${move.piece.player} wins!`);
-    disableAllMoves();
-    return;
-  }
-  currentPlayer = 1;
-}
-    
-    function initGame() {
-      initBoard();
-      initSupplies();
+
+    function undoLastMove() {
+      // We want to revert to the previous state => pop from historyStack
+      if (historyStack.length <= 1) {
+        alert("No moves to undo!");
+        return;
+      }
+      // Pop current state
+      historyStack.pop();
+      // Restore previous
+      let prevState = historyStack[historyStack.length - 1];
+      board = JSON.parse(JSON.stringify(prevState.board));
+      // Overwrite array contents
+      player1Pieces.splice(0, player1Pieces.length, ...JSON.parse(JSON.stringify(prevState.player1Pieces)));
+      player2Pieces.splice(0, player2Pieces.length, ...JSON.parse(JSON.stringify(prevState.player2Pieces)));
+      currentPlayer = prevState.currentPlayer;
+
       renderBoard();
       renderSupplies();
-      currentPlayer = 1;
-      selectedPiece = null;
     }
-    
+
+    /********************************************************************
+     * MUSIC CONTROLS AND EVENT LISTENERS
+     ********************************************************************/
     resetBtn.addEventListener('click', initGame);
+    undoBtn.addEventListener('click', undoLastMove);
     playMusicBtn.addEventListener('click', () => bgMusic.play());
     pauseMusicBtn.addEventListener('click', () => bgMusic.pause());
+
     window.onload = initGame;
   </script>
 </body>
