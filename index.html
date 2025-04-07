@@ -81,6 +81,18 @@
     .square:hover {
       background: rgba(255,255,255,0.3);
     }
+    /* Board pieces: absolute in center of their square */
+    .piece-board {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+    }
+    /* Supply pieces: normal flow in a column */
+    .piece-supply {
+      position: relative;
+      cursor: grab;
+    }
+    /* Common piece styling */
     .piece {
       border-radius: 50%;
       display: flex;
@@ -88,9 +100,6 @@
       justify-content: center;
       color: #fff;
       font-weight: bold;
-      position: absolute; /* absolutely position pieces so we can layer them */
-      transform: translate(-50%, -50%);
-      cursor: grab;
     }
     /* SIZE-BASED SHADING:
        Larger sizes => darker (lower brightness) */
@@ -186,7 +195,6 @@
     let currentPlayer = 1;
     let draggingPiece = null;    // The piece data {id,player,size,from...}
     let draggingElement = null;  // The DOM element being dragged (the ghost)
-    let draggingSource = null;   // Either 'board' or 'supply' or maybe stack location
     let originSquare = null;     // If we picked from the board, store (r,c) so we can revert
 
     const boardEl = document.getElementById('board');
@@ -263,14 +271,15 @@
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
 
-          let stack = board[r][c];
+          const stack = board[r][c];
           if (stack.length > 0) {
+            // top piece
             const topPiece = stack[stack.length - 1];
-            const pieceEl = createPieceElement(topPiece);
-            // Position in center
+            const pieceEl = createPieceElement(topPiece, /* fromBoard= */true);
+            // center it in the square
             pieceEl.style.top = '50%';
             pieceEl.style.left = '50%';
-            // For starting drag from the board
+            // For dragging
             pieceEl.onmousedown = (e) => startDragFromBoard(e, topPiece, r, c);
             squareDiv.appendChild(pieceEl);
           }
@@ -282,33 +291,34 @@
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
+
       player1Pieces.forEach(piece => {
         if (!piece.used) {
-          const el = createPieceElement(piece);
-          // For dragging from supply
+          const el = createPieceElement(piece, /* fromBoard= */ false);
           el.onmousedown = (e) => startDragFromSupply(e, piece);
-          // Shift it so it’s not at (0,0)
-          el.style.top = '20px';
-          el.style.left = '20px';
-
           player1SupplyEl.appendChild(el);
         }
       });
       player2Pieces.forEach(piece => {
         if (!piece.used) {
-          const el = createPieceElement(piece);
+          const el = createPieceElement(piece, false);
           el.onmousedown = (e) => startDragFromSupply(e, piece);
-
-          el.style.top = '20px';
-          el.style.left = '20px';
           player2SupplyEl.appendChild(el);
         }
       });
     }
 
-    function createPieceElement(piece) {
+    function createPieceElement(piece, fromBoard) {
+      // fromBoard => piece is placed in the board, so absolute + centered
+      // otherwise => piece is in the supply
       const el = document.createElement('div');
       el.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
+
+      if (fromBoard) {
+        el.classList.add('piece-board');
+      } else {
+        el.classList.add('piece-supply');
+      }
       el.textContent = piece.size;
       return el;
     }
@@ -320,8 +330,6 @@
     /********************************************************************
      * DRAG & DROP LOGIC
      ********************************************************************/
-
-    // Called when user mouses down on a piece in the supply
     function startDragFromSupply(e, piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -335,15 +343,14 @@
       });
     }
 
-    // Called when user mouses down on a piece on the board
     function startDragFromBoard(e, piece, r, c) {
       if (piece.player !== currentPlayer) {
         alert(`Top piece belongs to Player ${piece.player}, not you!`);
         return;
       }
-      // We'll remove it from that stack, but store if we need to revert
-      board[r][c].pop();
+      board[r][c].pop(); // remove from board so it disappears
       originSquare = {r, c};
+      renderBoard(); // re-render so the piece is removed visually
 
       beginDrag(e, {
         id: piece.id,
@@ -351,28 +358,20 @@
         size: piece.size,
         from: 'board'
       });
-      renderBoard(); // so the piece disappears from that square
     }
 
     function beginDrag(e, pieceInfo) {
       e.preventDefault();
-
-      if (draggingPiece) {
-        // We are already dragging something, ignore
-        return;
-      }
+      if (draggingPiece) return;
 
       draggingPiece = pieceInfo;
-      // create a ghost
+      // create ghost
       draggingElement = document.createElement('div');
       draggingElement.className = `piece drag-ghost player${pieceInfo.player} size${pieceInfo.size}`;
       draggingElement.textContent = pieceInfo.size;
-
       document.body.appendChild(draggingElement);
 
       positionGhost(e.pageX, e.pageY);
-
-      // Listen for mousemove/mouseup on the entire document
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     }
@@ -387,31 +386,29 @@
       document.removeEventListener('mouseup', onMouseUp);
 
       if (!draggingPiece) return;
-
       const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
-
       if (dropTarget && dropTarget.classList.contains('square')) {
-        // We are dropping on an empty portion or top of a square
         const [r, c] = parseSquareId(dropTarget.id);
-        // Check if we can place on top
         if (canPlacePiece(r, c, draggingPiece)) {
           placePiece(r, c, draggingPiece);
-          document.body.removeChild(draggingElement);
-          draggingElement = null;
-          draggingPiece = null;
-          originSquare = null;
+          cleanupDrag();
           return;
         } else {
           alert("Can't place here: piece is too small or invalid move.");
         }
       }
-      // If we reach here => revert
+      // revert
       revertDraggingPiece();
+      cleanupDrag();
+    }
+
+    function cleanupDrag() {
       if (draggingElement && draggingElement.parentNode) {
         draggingElement.parentNode.removeChild(draggingElement);
       }
       draggingElement = null;
       draggingPiece = null;
+      originSquare = null;
     }
 
     function positionGhost(x, y) {
@@ -421,11 +418,9 @@
     }
 
     function parseSquareId(id) {
-      // id should be "square-r-c"
-      let parts = id.split('-'); // [ 'square', 'r', 'c' ]
-      let r = parseInt(parts[1]);
-      let c = parseInt(parts[2]);
-      return [r, c];
+      // id = "square-r-c"
+      const parts = id.split('-');
+      return [ parseInt(parts[1]), parseInt(parts[2]) ];
     }
 
     function canPlacePiece(r, c, pieceInfo) {
@@ -440,19 +435,15 @@
     }
 
     function placePiece(r, c, pieceInfo) {
-      // If from supply => mark used
       if (pieceInfo.from === 'supply') {
         if (pieceInfo.player === 1) {
-          const p = player1Pieces.find(obj => obj.id === pieceInfo.id);
+          const p = player1Pieces.find(x => x.id === pieceInfo.id);
           if (p) p.used = true;
         } else {
-          const p = player2Pieces.find(obj => obj.id === pieceInfo.id);
+          const p = player2Pieces.find(x => x.id === pieceInfo.id);
           if (p) p.used = true;
         }
       }
-      // If from board => originSquare
-      // (already popped from board in startDragFromBoard)
-
       board[r][c].push({
         player: pieceInfo.player,
         size: pieceInfo.size,
@@ -460,20 +451,17 @@
       });
 
       renderAll();
-
       // Wait a frame so piece is visible
       window.requestAnimationFrame(() => {
         if (checkWin(pieceInfo.player)) {
           alert(`Player ${pieceInfo.player} wins!`);
           disableAllMoves();
         } else {
-          // next turn
           if (pieceInfo.player === currentPlayer) {
             currentPlayer = (currentPlayer === 1 ? 2 : 1);
           }
           updateTurnIndicator();
           saveHistory();
-
           if (currentPlayer === 2) {
             startBotTurn();
           }
@@ -483,10 +471,7 @@
 
     function revertDraggingPiece() {
       if (!draggingPiece) return;
-
-      // If from supply, do nothing special (the piece remains unused = false)
       if (draggingPiece.from === 'board' && originSquare) {
-        // put the piece back
         board[originSquare.r][originSquare.c].push({
           player: draggingPiece.player,
           size: draggingPiece.size,
@@ -494,7 +479,6 @@
         });
       }
       renderAll();
-      originSquare = null;
     }
 
     /********************************************************************
@@ -522,11 +506,10 @@
 
     function applyBotMove(move) {
       if (move.type === 'supply') {
-        let supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+        let supply = (move.piece.player === 1) ? player1Pieces : player2Pieces;
         let p = supply.find(x => x.id === move.piece.id);
         if (p) p.used = true;
       } else if (move.type === 'board') {
-        // remove from that stack
         let st = board[move.from[0]][move.from[1]];
         if (st.length > 0) st.pop();
       }
@@ -583,20 +566,17 @@
 
     function disableAllMoves() {
       // remove mousedown from supply pieces
-      let supplyPieces = player1SupplyEl.querySelectorAll('.piece');
-      supplyPieces.forEach(el => {
-        el.onmousedown = null;
-      });
-      supplyPieces = player2SupplyEl.querySelectorAll('.piece');
-      supplyPieces.forEach(el => {
-        el.onmousedown = null;
-      });
+      let supplyPieces = player1SupplyEl.querySelectorAll('.piece-supply');
+      supplyPieces.forEach(el => el.onmousedown = null);
+      supplyPieces = player2SupplyEl.querySelectorAll('.piece-supply');
+      supplyPieces.forEach(el => el.onmousedown = null);
+
       // remove from board pieces
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           let sq = document.getElementById(`square-${r}-${c}`);
           if (sq) {
-            let child = sq.querySelector('.piece');
+            let child = sq.querySelector('.piece-board');
             if (child) {
               child.onmousedown = null;
             }
