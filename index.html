@@ -17,6 +17,7 @@
       background-repeat: no-repeat;
       background-position: center center;
       background-size: contain;
+      overflow-x: hidden; /* prevent sideways scrolling if wide images */
     }
     h1 {
       text-align: center;
@@ -25,22 +26,22 @@
     }
     .game-layout {
       display: flex;
-      justify-content: center;
+      justify-content: center; /* center everything horizontally */
       align-items: flex-start;
-      gap: 20px;
-      max-width: 1000px; /* narrower max width */
+      gap: 10px; /* narrower gap */
+      max-width: 800px; /* narrower max width to bring columns in more */
       margin: 0 auto;
-      padding: 0 10px 20px; /* smaller horizontal padding for phone */
+      padding: 0 5px 20px;
     }
     .supply-container {
-      width: 100px; /* narrower supply column */
+      width: 70px; /* narrower supply column */
       display: flex;
       flex-direction: column;
       align-items: center;
     }
     .supply-container h2 {
       margin-bottom: 10px;
-      font-size: 1.1em;
+      font-size: 1.0em;
       color: #fff;
     }
     .supply {
@@ -49,23 +50,14 @@
       gap: 10px;
       align-items: center;
     }
-    .supply .piece {
-      cursor: pointer;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .supply .piece:hover {
-      transform: scale(1.1);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
     .board-container {
       flex: 1;
       margin-top: 20px;
       position: relative;
     }
-    /* We'll dynamically update this h2 to show "Player 1's Turn" / "Player 2's Turn" */
     #turn-indicator {
       margin-bottom: 10px;
-      font-size: 1.2em;
+      font-size: 1em;
       color: #fff;
       text-shadow: 0 1px 2px rgba(0,0,0,0.6);
       text-align: center;
@@ -73,7 +65,7 @@
     .board {
       display: grid;
       grid-template-columns: repeat(4, 60px); /* smaller squares */
-      grid-gap: 10px;
+      grid-gap: 6px; /* a bit smaller gap */
       justify-content: center;
       margin-bottom: 20px;
     }
@@ -83,11 +75,7 @@
       background: rgba(255,255,255,0.2);
       border: 2px solid rgba(255,255,255,0.3);
       border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       position: relative;
-      cursor: pointer;
       transition: background 0.2s ease;
     }
     .square:hover {
@@ -100,7 +88,9 @@
       justify-content: center;
       color: #fff;
       font-weight: bold;
-      position: relative;
+      position: absolute; /* absolutely position pieces so we can layer them */
+      transform: translate(-50%, -50%);
+      cursor: grab;
     }
     /* SIZE-BASED SHADING:
        Larger sizes => darker (lower brightness) */
@@ -120,7 +110,6 @@
       width: 55px; height: 55px; font-size: 1em;
       filter: brightness(70%);
     }
-    /* Player Colors */
     .player1 { background: #e74c3c; }
     .player2 { background: #3498db; }
     .controls {
@@ -144,10 +133,13 @@
     .controls button:hover {
       background: #2980b9;
     }
-    /* Highlight class for whichever piece or square is selected. */
-    .selected {
-      outline: 3px solid yellow;
-      outline-offset: -2px;
+    /* Ghost piece for dragging. We'll set pointer-events to none so it doesn't interrupt events. */
+    .drag-ghost {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0.8;
+      cursor: grabbing;
     }
   </style>
 </head>
@@ -159,18 +151,21 @@
       <h2>Player 1</h2>
       <div id="player1-supply" class="supply"></div>
     </div>
+
     <!-- Board in Center -->
     <div class="board-container">
       <!-- This heading updates to "Player 1's Turn" or "Player 2's Turn" -->
       <h2 id="turn-indicator">Player 1's Turn</h2>
       <div id="board" class="board"></div>
     </div>
+
     <!-- Right Supply (Player 2) -->
     <div class="supply-container">
       <h2>Player 2</h2>
       <div id="player2-supply" class="supply"></div>
     </div>
   </div>
+
   <div class="controls">
     <button id="reset-btn">Reset Game</button>
     <button id="undo-btn">Undo</button>
@@ -188,11 +183,11 @@
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;  // Player 1 = human, Player 2 = bot
-    let selectedPiece = null;
-
-    // We'll store the DOM element currently highlighted (board square or supply piece)
-    let selectedElement = null;
+    let currentPlayer = 1;
+    let draggingPiece = null;    // The piece data {id,player,size,from...}
+    let draggingElement = null;  // The DOM element being dragged (the ghost)
+    let draggingSource = null;   // Either 'board' or 'supply' or maybe stack location
+    let originSquare = null;     // If we picked from the board, store (r,c) so we can revert
 
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
@@ -204,10 +199,7 @@
     const pauseMusicBtn = document.getElementById('pause-music-btn');
     const turnIndicatorEl = document.getElementById('turn-indicator');
 
-    // We store previous states here to allow "undo".
     let historyStack = [];
-
-    // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
 
     /********************************************************************
@@ -241,7 +233,6 @@
           else player2Pieces.push(piece);
         }
       }
-
       [1,2,3,4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
@@ -252,16 +243,16 @@
       initBoard();
       initSupplies();
       currentPlayer = 1;
-      selectedPiece = null;
-      selectedElement = null;
+      updateTurnIndicator();
       historyStack = [];
 
+      renderAll();
+      saveHistory();
+    }
+
+    function renderAll() {
       renderBoard();
       renderSupplies();
-      updateTurnIndicator();
-
-      // Save initial state
-      saveHistory();
     }
 
     function renderBoard() {
@@ -271,17 +262,17 @@
           const squareDiv = document.createElement('div');
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
-          squareDiv.onclick = (event) => handleSquareClick(r, c, event);
 
           let stack = board[r][c];
           if (stack.length > 0) {
             const topPiece = stack[stack.length - 1];
-            const pieceDiv = createPieceDiv(topPiece);
-            pieceDiv.style.position = 'absolute';
-            pieceDiv.style.top = '50%';
-            pieceDiv.style.left = '50%';
-            pieceDiv.style.transform = 'translate(-50%, -50%)';
-            squareDiv.appendChild(pieceDiv);
+            const pieceEl = createPieceElement(topPiece);
+            // Position in center
+            pieceEl.style.top = '50%';
+            pieceEl.style.left = '50%';
+            // For starting drag from the board
+            pieceEl.onmousedown = (e) => startDragFromBoard(e, topPiece, r, c);
+            squareDiv.appendChild(pieceEl);
           }
           boardEl.appendChild(squareDiv);
         }
@@ -291,30 +282,35 @@
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
-
       player1Pieces.forEach(piece => {
         if (!piece.used) {
-          const div = createPieceDiv(piece);
-          // Pass the div so we can highlight it if selected
-          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
-          player1SupplyEl.appendChild(div);
+          const el = createPieceElement(piece);
+          // For dragging from supply
+          el.onmousedown = (e) => startDragFromSupply(e, piece);
+          // Shift it so it’s not at (0,0)
+          el.style.top = '20px';
+          el.style.left = '20px';
+
+          player1SupplyEl.appendChild(el);
         }
       });
       player2Pieces.forEach(piece => {
         if (!piece.used) {
-          const div = createPieceDiv(piece);
-          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
-          player2SupplyEl.appendChild(div);
+          const el = createPieceElement(piece);
+          el.onmousedown = (e) => startDragFromSupply(e, piece);
+
+          el.style.top = '20px';
+          el.style.left = '20px';
+          player2SupplyEl.appendChild(el);
         }
       });
     }
 
-    // Show size in the circle
-    function createPieceDiv(piece) {
-      const div = document.createElement('div');
-      div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
-      div.textContent = piece.size;
-      return div;
+    function createPieceElement(piece) {
+      const el = document.createElement('div');
+      el.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
+      el.textContent = piece.size;
+      return el;
     }
 
     function updateTurnIndicator() {
@@ -322,108 +318,160 @@
     }
 
     /********************************************************************
-     * SELECTION / HIGHLIGHT
+     * DRAG & DROP LOGIC
      ********************************************************************/
-    function highlightElement(el) {
-      // remove highlight from any previously selected
-      if (selectedElement) {
-        selectedElement.classList.remove('selected');
-      }
-      selectedElement = el;
-      if (selectedElement) {
-        selectedElement.classList.add('selected');
-      }
-    }
 
-    /********************************************************************
-     * HUMAN MOVES
-     ********************************************************************/
-    function pickUpFromSupply(piece, pieceEl) {
+    // Called when user mouses down on a piece in the supply
+    function startDragFromSupply(e, piece) {
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
         return;
       }
-      if (selectedPiece) {
-        alert('You already have a piece in hand. Place it first or reselect.');
-        return;
-      }
-      // highlight the supply piece
-      highlightElement(pieceEl);
-
-      selectedPiece = {
+      beginDrag(e, {
         id: piece.id,
         player: piece.player,
         size: piece.size,
         from: 'supply'
-      };
+      });
     }
 
-    function handleSquareClick(r, c, evt) {
-      const squareDiv = evt.currentTarget;
-      let stack = board[r][c];
-
-      if (!selectedPiece) {
-        // Attempt to pick up from the board
-        if (stack.length === 0) {
-          alert('No piece here to pick up.');
-          return;
-        }
-        const topPiece = stack[stack.length - 1];
-        if (topPiece.player !== currentPlayer) {
-          alert(`Top piece belongs to Player ${topPiece.player}, not you!`);
-          return;
-        }
-        stack.pop();
-        selectedPiece = {
-          id: topPiece.id,
-          player: topPiece.player,
-          size: topPiece.size,
-          from: 'board',
-          row: r,
-          col: c
-        };
-        // highlight this square to show it's "picked up" from here
-        highlightElement(squareDiv);
-
-        renderBoard();
+    // Called when user mouses down on a piece on the board
+    function startDragFromBoard(e, piece, r, c) {
+      if (piece.player !== currentPlayer) {
+        alert(`Top piece belongs to Player ${piece.player}, not you!`);
         return;
       }
-      // We have a piece in hand => place it
-      if (stack.length > 0) {
-        const topPiece = stack[stack.length - 1];
-        if (selectedPiece.size <= topPiece.size) {
-          alert(`Your piece is too small to cover size ${topPiece.size}.`);
+      // We'll remove it from that stack, but store if we need to revert
+      board[r][c].pop();
+      originSquare = {r, c};
+
+      beginDrag(e, {
+        id: piece.id,
+        player: piece.player,
+        size: piece.size,
+        from: 'board'
+      });
+      renderBoard(); // so the piece disappears from that square
+    }
+
+    function beginDrag(e, pieceInfo) {
+      e.preventDefault();
+
+      if (draggingPiece) {
+        // We are already dragging something, ignore
+        return;
+      }
+
+      draggingPiece = pieceInfo;
+      // create a ghost
+      draggingElement = document.createElement('div');
+      draggingElement.className = `piece drag-ghost player${pieceInfo.player} size${pieceInfo.size}`;
+      draggingElement.textContent = pieceInfo.size;
+
+      document.body.appendChild(draggingElement);
+
+      positionGhost(e.pageX, e.pageY);
+
+      // Listen for mousemove/mouseup on the entire document
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    }
+
+    function onMouseMove(e) {
+      if (!draggingElement) return;
+      positionGhost(e.pageX, e.pageY);
+    }
+
+    function onMouseUp(e) {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+
+      if (!draggingPiece) return;
+
+      const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+
+      if (dropTarget && dropTarget.classList.contains('square')) {
+        // We are dropping on an empty portion or top of a square
+        const [r, c] = parseSquareId(dropTarget.id);
+        // Check if we can place on top
+        if (canPlacePiece(r, c, draggingPiece)) {
+          placePiece(r, c, draggingPiece);
+          document.body.removeChild(draggingElement);
+          draggingElement = null;
+          draggingPiece = null;
+          originSquare = null;
           return;
+        } else {
+          alert("Can't place here: piece is too small or invalid move.");
         }
       }
-      // place the piece
-      stack.push({
-        player: selectedPiece.player,
-        size: selectedPiece.size,
-        id: selectedPiece.id
-      });
-      if (selectedPiece.from === 'supply') {
-        markPieceUsed(selectedPiece);
+      // If we reach here => revert
+      revertDraggingPiece();
+      if (draggingElement && draggingElement.parentNode) {
+        draggingElement.parentNode.removeChild(draggingElement);
       }
+      draggingElement = null;
+      draggingPiece = null;
+    }
 
-      // once placed, remove highlight
-      highlightElement(null);
+    function positionGhost(x, y) {
+      if (!draggingElement) return;
+      draggingElement.style.left = (x - draggingElement.offsetWidth / 2) + 'px';
+      draggingElement.style.top = (y - draggingElement.offsetHeight / 2) + 'px';
+    }
 
-      renderBoard();
-      renderSupplies();
+    function parseSquareId(id) {
+      // id should be "square-r-c"
+      let parts = id.split('-'); // [ 'square', 'r', 'c' ]
+      let r = parseInt(parts[1]);
+      let c = parseInt(parts[2]);
+      return [r, c];
+    }
 
-      // Wait a frame so the piece is visible
+    function canPlacePiece(r, c, pieceInfo) {
+      let stack = board[r][c];
+      if (stack.length > 0) {
+        let topPiece = stack[stack.length - 1];
+        if (pieceInfo.size <= topPiece.size) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function placePiece(r, c, pieceInfo) {
+      // If from supply => mark used
+      if (pieceInfo.from === 'supply') {
+        if (pieceInfo.player === 1) {
+          const p = player1Pieces.find(obj => obj.id === pieceInfo.id);
+          if (p) p.used = true;
+        } else {
+          const p = player2Pieces.find(obj => obj.id === pieceInfo.id);
+          if (p) p.used = true;
+        }
+      }
+      // If from board => originSquare
+      // (already popped from board in startDragFromBoard)
+
+      board[r][c].push({
+        player: pieceInfo.player,
+        size: pieceInfo.size,
+        id: pieceInfo.id
+      });
+
+      renderAll();
+
+      // Wait a frame so piece is visible
       window.requestAnimationFrame(() => {
-        if (checkWin(selectedPiece.player)) {
-          alert(`Player ${selectedPiece.player} wins!`);
+        if (checkWin(pieceInfo.player)) {
+          alert(`Player ${pieceInfo.player} wins!`);
           disableAllMoves();
         } else {
-          // Next player's turn
-          selectedPiece = null;
-          currentPlayer = (currentPlayer === 1 ? 2 : 1);
+          // next turn
+          if (pieceInfo.player === currentPlayer) {
+            currentPlayer = (currentPlayer === 1 ? 2 : 1);
+          }
           updateTurnIndicator();
-
-          // Save game state
           saveHistory();
 
           if (currentPlayer === 2) {
@@ -433,28 +481,33 @@
       });
     }
 
-    function markPieceUsed(sel) {
-      if (sel.player === 1) {
-        const p = player1Pieces.find(p => p.id === sel.id);
-        if (p) p.used = true;
-      } else {
-        const p = player2Pieces.find(p => p.id === sel.id);
-        if (p) p.used = true;
+    function revertDraggingPiece() {
+      if (!draggingPiece) return;
+
+      // If from supply, do nothing special (the piece remains unused = false)
+      if (draggingPiece.from === 'board' && originSquare) {
+        // put the piece back
+        board[originSquare.r][originSquare.c].push({
+          player: draggingPiece.player,
+          size: draggingPiece.size,
+          id: draggingPiece.id
+        });
       }
+      renderAll();
+      originSquare = null;
     }
 
     /********************************************************************
-     * BOT MOVES
+     * BOT TURN
      ********************************************************************/
     function startBotTurn() {
-      const state = {
+      let state = {
         board: board,
         supply1: player1Pieces,
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
       botWorker.postMessage({ state: state, timeLimit: 10 });
-
       botWorker.onmessage = function(e) {
         const { move, error } = e.data;
         if (error) {
@@ -468,24 +521,21 @@
     }
 
     function applyBotMove(move) {
-      if (move.type === "supply") {
-        const supply = (move.piece.player === 1) ? player1Pieces : player2Pieces;
-        const p = supply.find(p => p.id === move.piece.id);
+      if (move.type === 'supply') {
+        let supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+        let p = supply.find(x => x.id === move.piece.id);
         if (p) p.used = true;
-      } else if (move.type === "board") {
-        let stack = board[move.from[0]][move.from[1]];
-        if (stack.length > 0) stack.pop();
+      } else if (move.type === 'board') {
+        // remove from that stack
+        let st = board[move.from[0]][move.from[1]];
+        if (st.length > 0) st.pop();
       }
       board[move.to[0]][move.to[1]].push({
         player: move.piece.player,
         size: move.piece.size,
         id: move.piece.id
       });
-
-      renderBoard();
-      renderSupplies();
-
-      // Wait a frame so the piece is visible
+      renderAll();
       window.requestAnimationFrame(() => {
         if (checkWin(move.piece.player)) {
           alert(`Player ${move.piece.player} wins!`);
@@ -493,7 +543,6 @@
         } else {
           currentPlayer = 1;
           updateTurnIndicator();
-          // Save after bot move
           saveHistory();
         }
       });
@@ -518,7 +567,9 @@
       // check cols
       for (let c = 0; c < COLS; c++) {
         let colVals = [];
-        for (let r = 0; r < ROWS; r++) colVals.push(topGrid[r][c]);
+        for (let r = 0; r < ROWS; r++) {
+          colVals.push(topGrid[r][c]);
+        }
         if (colVals.every(p => p === player)) return true;
       }
       // diag1
@@ -531,22 +582,34 @@
     }
 
     function disableAllMoves() {
+      // remove mousedown from supply pieces
+      let supplyPieces = player1SupplyEl.querySelectorAll('.piece');
+      supplyPieces.forEach(el => {
+        el.onmousedown = null;
+      });
+      supplyPieces = player2SupplyEl.querySelectorAll('.piece');
+      supplyPieces.forEach(el => {
+        el.onmousedown = null;
+      });
+      // remove from board pieces
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
-          const squareDiv = document.getElementById(`square-${r}-${c}`);
-          if (squareDiv) squareDiv.onclick = null;
+          let sq = document.getElementById(`square-${r}-${c}`);
+          if (sq) {
+            let child = sq.querySelector('.piece');
+            if (child) {
+              child.onmousedown = null;
+            }
+          }
         }
       }
-      player1SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
-      player2SupplyEl.querySelectorAll('.piece').forEach(el => el.onclick = null);
     }
 
     /********************************************************************
-     * UNDO FUNCTIONALITY
+     * UNDO
      ********************************************************************/
     function saveHistory() {
-      // Store a deep clone of the game state
-      const stateObj = {
+      let stateObj = {
         board: JSON.parse(JSON.stringify(board)),
         player1Pieces: JSON.parse(JSON.stringify(player1Pieces)),
         player2Pieces: JSON.parse(JSON.stringify(player2Pieces)),
@@ -557,27 +620,22 @@
 
     function undoLastMove() {
       if (historyStack.length <= 1) {
-        alert("No moves to undo!");
+        alert('No moves to undo!');
         return;
       }
-      // pop current
       historyStack.pop();
-      // revert to previous
       let prevState = historyStack[historyStack.length - 1];
       board = JSON.parse(JSON.stringify(prevState.board));
-      player1Pieces.splice(0, player1Pieces.length, ...JSON.parse(JSON.stringify(prevState.player1Pieces)));
-      player2Pieces.splice(0, player2Pieces.length, ...JSON.parse(JSON.stringify(prevState.player2Pieces)));
+      player1Pieces.splice(0, player1Pieces.length, ...prevState.player1Pieces);
+      player2Pieces.splice(0, player2Pieces.length, ...prevState.player2Pieces);
       currentPlayer = prevState.currentPlayer;
-      selectedPiece = null;
-      highlightElement(null); // remove any highlight
 
-      renderBoard();
-      renderSupplies();
+      renderAll();
       updateTurnIndicator();
     }
 
     /********************************************************************
-     * MUSIC / EVENT LISTENERS
+     * EVENTS
      ********************************************************************/
     resetBtn.addEventListener('click', initGame);
     undoBtn.addEventListener('click', undoLastMove);
