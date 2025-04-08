@@ -7,6 +7,11 @@
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    /* Define default player colors using CSS variables */
+    :root {
+      --player1-color: #e74c3c;
+      --player2-color: #3498db;
+    }
     html, body {
       margin: 0;
       padding: 0;
@@ -62,7 +67,7 @@
       margin-top: 20px;
       position: relative;
     }
-    /* We'll dynamically update this h2 to show "Player 1's Turn" / "Player 2's Turn" */
+    /* Turn indicator styling */
     #turn-indicator {
       margin-bottom: 10px;
       font-size: 1.2em;
@@ -102,8 +107,7 @@
       font-weight: bold;
       position: relative;
     }
-    /* SIZE-BASED SHADING:
-       Larger sizes => darker (lower brightness) */
+    /* SIZE-BASED SHADING */
     .size1 {
       width: 25px; height: 25px; font-size: 0.7em;
       filter: brightness(100%);
@@ -120,9 +124,9 @@
       width: 55px; height: 55px; font-size: 1em;
       filter: brightness(70%);
     }
-    /* Player Colors */
-    .player1 { background: #e74c3c; }
-    .player2 { background: #3498db; }
+    /* Use CSS variables for player colors */
+    .player1 { background: var(--player1-color); }
+    .player2 { background: var(--player2-color); }
     .controls {
       position: fixed;
       bottom: 20px;
@@ -130,7 +134,7 @@
       transform: translateX(-50%);
       text-align: center;
     }
-    .controls button {
+    .controls button, .controls select {
       background: #3498db;
       color: #fff;
       border: none;
@@ -141,10 +145,10 @@
       transition: background 0.2s ease;
       margin: 5px;
     }
-    .controls button:hover {
+    .controls button:hover, .controls select:hover {
       background: #2980b9;
     }
-    /* Highlight class for whichever piece or square is selected. */
+    /* Highlight for selected elements */
     .selected {
       outline: 3px solid yellow;
       outline-offset: -2px;
@@ -159,9 +163,8 @@
       <h2>Player 1</h2>
       <div id="player1-supply" class="supply"></div>
     </div>
-    <!-- Board in Center -->
+    <!-- Center Board -->
     <div class="board-container">
-      <!-- This heading updates to "Player 1's Turn" or "Player 2's Turn" -->
       <h2 id="turn-indicator">Player 1's Turn</h2>
       <div id="board" class="board"></div>
     </div>
@@ -176,6 +179,16 @@
     <button id="undo-btn">Undo</button>
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
+    <br>
+    <!-- Dropdown for selecting complementary color pair -->
+    <label for="color-pair-select" style="color:#fff;">Color Combo:</label>
+    <select id="color-pair-select">
+      <option value="default">Default (Red & Blue)</option>
+      <option value="red-green">Red & Green</option>
+      <option value="blue-orange">Blue & Orange</option>
+      <option value="purple-yellow">Purple & Yellow</option>
+      <option value="cyan-magenta">Cyan & Magenta</option>
+    </select>
   </div>
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
 
@@ -190,8 +203,6 @@
     const player2Pieces = [];
     let currentPlayer = 1;  // Player 1 = human, Player 2 = bot
     let selectedPiece = null;
-
-    // We'll store the DOM element currently highlighted (board square or supply piece)
     let selectedElement = null;
 
     const boardEl = document.getElementById('board');
@@ -203,12 +214,31 @@
     const playMusicBtn = document.getElementById('play-music-btn');
     const pauseMusicBtn = document.getElementById('pause-music-btn');
     const turnIndicatorEl = document.getElementById('turn-indicator');
+    const colorPairSelect = document.getElementById('color-pair-select');
 
-    // We store previous states here to allow "undo".
     let historyStack = [];
-
-    // Create a global bot worker
     let botWorker = new Worker("botWorker.js");
+
+    // Mapping of available color pairs
+    const colorPairs = {
+      "default": { player1: "#e74c3c", player2: "#3498db" },
+      "red-green": { player1: "#e74c3c", player2: "#2ecc71" },
+      "blue-orange": { player1: "#3498db", player2: "#e67e22" },
+      "purple-yellow": { player1: "#9b59b6", player2: "#f1c40f" },
+      "cyan-magenta": { player1: "#00ffff", player2: "#ff00ff" }
+    };
+
+    // Update CSS variables to change player piece colors
+    function updatePlayerColors(pairKey) {
+      const pair = colorPairs[pairKey];
+      document.documentElement.style.setProperty('--player1-color', pair.player1);
+      document.documentElement.style.setProperty('--player2-color', pair.player2);
+    }
+
+    // Listen for changes to the color pair selection
+    colorPairSelect.addEventListener('change', (e) => {
+      updatePlayerColors(e.target.value);
+    });
 
     /********************************************************************
      * INIT / RENDER
@@ -295,7 +325,6 @@
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          // Pass the div so we can highlight it if selected
           div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
           player1SupplyEl.appendChild(div);
         }
@@ -309,7 +338,7 @@
       });
     }
 
-    // Show size in the circle
+    // Creates a visual representation of a game piece.
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
@@ -325,7 +354,6 @@
      * SELECTION / HIGHLIGHT
      ********************************************************************/
     function highlightElement(el) {
-      // remove highlight from any previously selected
       if (selectedElement) {
         selectedElement.classList.remove('selected');
       }
@@ -347,9 +375,7 @@
         alert('You already have a piece in hand. Place it first or reselect.');
         return;
       }
-      // highlight the supply piece
       highlightElement(pieceEl);
-
       selectedPiece = {
         id: piece.id,
         player: piece.player,
@@ -363,7 +389,6 @@
       let stack = board[r][c];
 
       if (!selectedPiece) {
-        // Attempt to pick up from the board
         if (stack.length === 0) {
           alert('No piece here to pick up.');
           return;
@@ -382,13 +407,10 @@
           row: r,
           col: c
         };
-        // highlight this square to show it's "picked up" from here
         highlightElement(squareDiv);
-
         renderBoard();
         return;
       }
-      // We have a piece in hand => place it
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
@@ -396,7 +418,6 @@
           return;
         }
       }
-      // place the piece
       stack.push({
         player: selectedPiece.player,
         size: selectedPiece.size,
@@ -405,27 +426,19 @@
       if (selectedPiece.from === 'supply') {
         markPieceUsed(selectedPiece);
       }
-
-      // once placed, remove highlight
       highlightElement(null);
-
       renderBoard();
       renderSupplies();
 
-      // Wait a frame so the piece is visible
       window.requestAnimationFrame(() => {
         if (checkWin(selectedPiece.player)) {
           alert(`Player ${selectedPiece.player} wins!`);
           disableAllMoves();
         } else {
-          // Next player's turn
           selectedPiece = null;
           currentPlayer = (currentPlayer === 1 ? 2 : 1);
           updateTurnIndicator();
-
-          // Save game state
           saveHistory();
-
           if (currentPlayer === 2) {
             startBotTurn();
           }
@@ -485,7 +498,6 @@
       renderBoard();
       renderSupplies();
 
-      // Wait a frame so the piece is visible
       window.requestAnimationFrame(() => {
         if (checkWin(move.piece.player)) {
           alert(`Player ${move.piece.player} wins!`);
@@ -493,7 +505,6 @@
         } else {
           currentPlayer = 1;
           updateTurnIndicator();
-          // Save after bot move
           saveHistory();
         }
       });
@@ -511,20 +522,17 @@
           topGrid[r][c] = (stack.length > 0) ? stack[stack.length - 1].player : 0;
         }
       }
-      // check rows
+      // Check rows, columns, and diagonals
       for (let r = 0; r < ROWS; r++) {
         if (topGrid[r].every(p => p === player)) return true;
       }
-      // check cols
       for (let c = 0; c < COLS; c++) {
         let colVals = [];
         for (let r = 0; r < ROWS; r++) colVals.push(topGrid[r][c]);
         if (colVals.every(p => p === player)) return true;
       }
-      // diag1
       let diag1 = [topGrid[0][0], topGrid[1][1], topGrid[2][2], topGrid[3][3]];
       if (diag1.every(p => p === player)) return true;
-      // diag2
       let diag2 = [topGrid[0][3], topGrid[1][2], topGrid[2][1], topGrid[3][0]];
       if (diag2.every(p => p === player)) return true;
       return false;
@@ -545,7 +553,6 @@
      * UNDO FUNCTIONALITY
      ********************************************************************/
     function saveHistory() {
-      // Store a deep clone of the game state
       const stateObj = {
         board: JSON.parse(JSON.stringify(board)),
         player1Pieces: JSON.parse(JSON.stringify(player1Pieces)),
@@ -560,16 +567,14 @@
         alert("No moves to undo!");
         return;
       }
-      // pop current
       historyStack.pop();
-      // revert to previous
       let prevState = historyStack[historyStack.length - 1];
       board = JSON.parse(JSON.stringify(prevState.board));
       player1Pieces.splice(0, player1Pieces.length, ...JSON.parse(JSON.stringify(prevState.player1Pieces)));
       player2Pieces.splice(0, player2Pieces.length, ...JSON.parse(JSON.stringify(prevState.player2Pieces)));
       currentPlayer = prevState.currentPlayer;
       selectedPiece = null;
-      highlightElement(null); // remove any highlight
+      highlightElement(null);
 
       renderBoard();
       renderSupplies();
