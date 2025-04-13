@@ -3,11 +3,11 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.23.1/full/pyodide.js");
 
 let pyodideReady = false;
 let pyodide = null;
-let currentEngineFile = null;  // keep track of which engine is loaded
+let currentEngineFile = null;  // Keep track of the currently loaded engine file
 
 async function initPyodide() {
   pyodide = await loadPyodide();
-  // Initially load the default engine.
+  // Initially load the default engine code from engine.py
   const engineCode = await (await fetch("Gobbet-engine/engine.py")).text();
   await pyodide.runPythonAsync(engineCode);
   currentEngineFile = "engine.py";
@@ -18,10 +18,13 @@ initPyodide();
 
 self.onmessage = async function(e) {
   const { state, timeLimit, engineFile } = e.data;
+  
+  // Wait until Pyodide is ready
   while (!pyodideReady) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
-  // If a new engine file is requested, load it.
+  
+  // If the requested engine file is different, fetch and run it.
   if (engineFile && engineFile !== currentEngineFile) {
     try {
       const newEngineCode = await (await fetch("Gobbet-engine/" + engineFile)).text();
@@ -34,7 +37,7 @@ self.onmessage = async function(e) {
     }
   }
   
-  // Construct the Python command.
+  // Construct the Python command to run the engine logic
   const command = `
 import json
 state = json.loads('${JSON.stringify(state)}')
