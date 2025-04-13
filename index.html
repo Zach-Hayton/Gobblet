@@ -7,7 +7,7 @@
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    /* Define default player colors using CSS variables */
+    /* ... (existing CSS remains unchanged) ... */
     :root {
       --player1-color: #e74c3c;
       --player2-color: #3498db;
@@ -33,12 +33,12 @@
       justify-content: center;
       align-items: flex-start;
       gap: 20px;
-      max-width: 1000px; /* narrower max width */
+      max-width: 1000px;
       margin: 0 auto;
-      padding: 0 10px 20px; /* smaller horizontal padding for phone */
+      padding: 0 10px 20px;
     }
     .supply-container {
-      width: 100px; /* narrower supply column */
+      width: 100px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -67,7 +67,6 @@
       margin-top: 20px;
       position: relative;
     }
-    /* Turn indicator styling */
     #turn-indicator {
       margin-bottom: 10px;
       font-size: 1.2em;
@@ -77,7 +76,7 @@
     }
     .board {
       display: grid;
-      grid-template-columns: repeat(4, 60px); /* smaller squares */
+      grid-template-columns: repeat(4, 60px);
       grid-gap: 10px;
       justify-content: center;
       margin-bottom: 20px;
@@ -107,7 +106,6 @@
       font-weight: bold;
       position: relative;
     }
-    /* SIZE-BASED SHADING */
     .size1 {
       width: 25px; height: 25px; font-size: 0.7em;
       filter: brightness(100%);
@@ -124,7 +122,6 @@
       width: 55px; height: 55px; font-size: 1em;
       filter: brightness(70%);
     }
-    /* Use CSS variables for player colors */
     .player1 { background: var(--player1-color); }
     .player2 { background: var(--player2-color); }
     .controls {
@@ -148,7 +145,6 @@
     .controls button:hover, .controls select:hover {
       background: #2980b9;
     }
-    /* Highlight for selected elements */
     .selected {
       outline: 3px solid yellow;
       outline-offset: -2px;
@@ -180,7 +176,7 @@
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
     <br>
-    <!-- Dropdown for selecting complementary color pair -->
+    <!-- Existing color combo dropdown -->
     <label for="color-pair-select" style="color:#fff;">Color Combo:</label>
     <select id="color-pair-select">
       <option value="default">Default (Red & Blue)</option>
@@ -188,6 +184,25 @@
       <option value="blue-orange">Blue & Orange</option>
       <option value="purple-yellow">Purple & Yellow</option>
       <option value="cyan-magenta">Cyan & Magenta</option>
+    </select>
+    <br><br>
+    <!-- New Controls for Game Mode and Engine Selection -->
+    <label for="game-mode-select" style="color:#fff;">Game Mode:</label>
+    <select id="game-mode-select">
+      <option value="humanVsEngine" selected>Human vs Engine</option>
+      <option value="engineVsEngine">Engine vs Engine</option>
+    </select>
+    <br>
+    <label for="player1-engine-select" style="color:#fff;">Player 1 Engine:</label>
+    <select id="player1-engine-select">
+      <option value="engine.py" selected>Default Engine</option>
+      <option value="engine2.py">Engine 2</option>
+    </select>
+    <br>
+    <label for="player2-engine-select" style="color:#fff;">Player 2 Engine:</label>
+    <select id="player2-engine-select">
+      <option value="engine.py" selected>Default Engine</option>
+      <option value="engine2.py">Engine 2</option>
     </select>
   </div>
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
@@ -201,9 +216,16 @@
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;  // Player 1 = human, Player 2 = bot
+    let currentPlayer = 1;  // 1: Player1, 2: Player2
     let selectedPiece = null;
     let selectedElement = null;
+
+    // Game mode variables:
+    // For humanVsEngine: Player 1 is human, Player 2 is engine.
+    // For engineVsEngine: Both players are engine controlled.
+    let gameMode = 'humanVsEngine';
+    let player1IsHuman = true;
+    let player2IsHuman = false;
 
     const boardEl = document.getElementById('board');
     const player1SupplyEl = document.getElementById('player1-supply');
@@ -216,10 +238,28 @@
     const turnIndicatorEl = document.getElementById('turn-indicator');
     const colorPairSelect = document.getElementById('color-pair-select');
 
-    let historyStack = [];
-    let botWorker = new Worker("botWorker.js");
+    // New engine & game mode selectors
+    const gameModeSelect = document.getElementById('game-mode-select');
+    const player1EngineSelect = document.getElementById('player1-engine-select');
+    const player2EngineSelect = document.getElementById('player2-engine-select');
 
-    // Mapping of available color pairs
+    gameModeSelect.addEventListener('change', (e) => {
+      gameMode = e.target.value;
+      if (gameMode === 'humanVsEngine') {
+        player1IsHuman = true;
+        player2IsHuman = false;
+      } else if (gameMode === 'engineVsEngine') {
+        player1IsHuman = false;
+        player2IsHuman = false;
+      }
+      initGame();
+    });
+
+    // (Optional: add event listeners on engine selectors if you want to restart the game when the engine file changes)
+    player1EngineSelect.addEventListener('change', initGame);
+    player2EngineSelect.addEventListener('change', initGame);
+
+    // Mapping of available color pairs (unchanged)
     const colorPairs = {
       "default": { player1: "#e74c3c", player2: "#3498db" },
       "red-green": { player1: "#e74c3c", player2: "#2ecc71" },
@@ -228,14 +268,11 @@
       "cyan-magenta": { player1: "#00ffff", player2: "#ff00ff" }
     };
 
-    // Update CSS variables to change player piece colors
     function updatePlayerColors(pairKey) {
       const pair = colorPairs[pairKey];
       document.documentElement.style.setProperty('--player1-color', pair.player1);
       document.documentElement.style.setProperty('--player2-color', pair.player2);
     }
-
-    // Listen for changes to the color pair selection
     colorPairSelect.addEventListener('change', (e) => {
       updatePlayerColors(e.target.value);
     });
@@ -271,7 +308,6 @@
           else player2Pieces.push(piece);
         }
       }
-
       [1,2,3,4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
@@ -292,6 +328,11 @@
 
       // Save initial state
       saveHistory();
+
+      // Auto-start the turn if the current player is engine controlled
+      if (!isCurrentPlayerHuman()) {
+        setTimeout(startBotTurn, 500);
+      }
     }
 
     function renderBoard() {
@@ -301,7 +342,12 @@
           const squareDiv = document.createElement('div');
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
-          squareDiv.onclick = (event) => handleSquareClick(r, c, event);
+          // Only attach manual click if current turn is human
+          squareDiv.onclick = (event) => {
+            if (isCurrentPlayerHuman()) {
+              handleSquareClick(r, c, event);
+            }
+          };
 
           let stack = board[r][c];
           if (stack.length > 0) {
@@ -322,17 +368,22 @@
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
 
+      // Only attach click events to the supply pieces if it belongs to the human whose turn it is.
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
+          if (piece.player === currentPlayer && isCurrentPlayerHuman()) {
+            div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
+          }
           player1SupplyEl.appendChild(div);
         }
       });
       player2Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
+          if (piece.player === currentPlayer && isCurrentPlayerHuman()) {
+            div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
+          }
           player2SupplyEl.appendChild(div);
         }
       });
@@ -363,10 +414,17 @@
       }
     }
 
+    // Helper: returns true if the current turn is human controlled
+    function isCurrentPlayerHuman() {
+      return currentPlayer === 1 ? player1IsHuman : player2IsHuman;
+    }
+
     /********************************************************************
      * HUMAN MOVES
      ********************************************************************/
     function pickUpFromSupply(piece, pieceEl) {
+      // Only allow manual action if the current player is human.
+      if (!isCurrentPlayerHuman()) return;
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
         return;
@@ -385,6 +443,9 @@
     }
 
     function handleSquareClick(r, c, evt) {
+      // Only allow manual moves for human-controlled turns.
+      if (!isCurrentPlayerHuman()) return;
+
       const squareDiv = evt.currentTarget;
       let stack = board[r][c];
 
@@ -439,8 +500,9 @@
           currentPlayer = (currentPlayer === 1 ? 2 : 1);
           updateTurnIndicator();
           saveHistory();
-          if (currentPlayer === 2) {
-            startBotTurn();
+          // If the new current player is engine controlled, trigger their move automatically.
+          if (!isCurrentPlayerHuman()) {
+            setTimeout(startBotTurn, 500);
           }
         }
       });
@@ -457,17 +519,23 @@
     }
 
     /********************************************************************
-     * BOT MOVES
+     * BOT/ENGINE MOVES
      ********************************************************************/
+    // The botWorker is used to compute engine moves.
+    let botWorker = new Worker("botWorker.js");
+
     function startBotTurn() {
+      // Only trigger the engine if the current player is not human.
+      if (isCurrentPlayerHuman()) return;
+      const engineFile = currentPlayer === 1 ? player1EngineSelect.value : player2EngineSelect.value;
       const state = {
         board: board,
         supply1: player1Pieces,
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
-      botWorker.postMessage({ state: state, timeLimit: 10 });
-
+      // Send engineFile along with state and timeLimit for the bot computation.
+      botWorker.postMessage({ state: state, timeLimit: 10, engineFile: engineFile });
       botWorker.onmessage = function(e) {
         const { move, error } = e.data;
         if (error) {
@@ -482,7 +550,7 @@
 
     function applyBotMove(move) {
       if (move.type === "supply") {
-        const supply = (move.piece.player === 1) ? player1Pieces : player2Pieces;
+        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
         const p = supply.find(p => p.id === move.piece.id);
         if (p) p.used = true;
       } else if (move.type === "board") {
@@ -506,6 +574,10 @@
           currentPlayer = 1;
           updateTurnIndicator();
           saveHistory();
+          // If next turn is engine controlled, start its move automatically.
+          if (!isCurrentPlayerHuman()) {
+            setTimeout(startBotTurn, 500);
+          }
         }
       });
     }
@@ -522,7 +594,6 @@
           topGrid[r][c] = (stack.length > 0) ? stack[stack.length - 1].player : 0;
         }
       }
-      // Check rows, columns, and diagonals
       for (let r = 0; r < ROWS; r++) {
         if (topGrid[r].every(p => p === player)) return true;
       }
@@ -552,6 +623,7 @@
     /********************************************************************
      * UNDO FUNCTIONALITY
      ********************************************************************/
+    let historyStack = [];
     function saveHistory() {
       const stateObj = {
         board: JSON.parse(JSON.stringify(board)),
@@ -561,7 +633,6 @@
       };
       historyStack.push(stateObj);
     }
-
     function undoLastMove() {
       if (historyStack.length <= 1) {
         alert("No moves to undo!");
@@ -575,7 +646,6 @@
       currentPlayer = prevState.currentPlayer;
       selectedPiece = null;
       highlightElement(null);
-
       renderBoard();
       renderSupplies();
       updateTurnIndicator();
@@ -588,7 +658,6 @@
     undoBtn.addEventListener('click', undoLastMove);
     playMusicBtn.addEventListener('click', () => bgMusic.play());
     pauseMusicBtn.addEventListener('click', () => bgMusic.pause());
-
     window.onload = initGame;
   </script>
 </body>
