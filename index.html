@@ -548,38 +548,39 @@
     }
 
     function applyBotMove(move) {
-      if (move.type === "supply") {
-        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
-        const p = supply.find(p => p.id === move.piece.id);
-        if (p) p.used = true;
-      } else if (move.type === "board") {
-        let stack = board[move.from[0]][move.from[1]];
-        if (stack.length > 0) stack.pop();
+  if (move.type === "supply") {
+    const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+    const p = supply.find(p => p.id === move.piece.id);
+    if (p) p.used = true;
+  } else if (move.type === "board") {
+    let stack = board[move.from[0]][move.from[1]];
+    if (stack.length > 0) stack.pop();
+  }
+  board[move.to[0]][move.to[1]].push({
+    player: move.piece.player,
+    size: move.piece.size,
+    id: move.piece.id
+  });
+
+  renderBoard();
+  renderSupplies();
+
+  window.requestAnimationFrame(() => {
+    if (checkWin(move.piece.player)) {
+      alert(`Player ${move.piece.player} wins!`);
+      disableAllMoves();
+    } else {
+      // Toggle the current player instead of always setting it to 1
+      currentPlayer = (currentPlayer === 1 ? 2 : 1);
+      updateTurnIndicator();
+      saveHistory();
+      if (!isCurrentPlayerHuman()) {
+        setTimeout(startBotTurn, 500);
       }
-      board[move.to[0]][move.to[1]].push({
-        player: move.piece.player,
-        size: move.piece.size,
-        id: move.piece.id
-      });
-
-      renderBoard();
-      renderSupplies();
-
-      window.requestAnimationFrame(() => {
-        if (checkWin(move.piece.player)) {
-          alert(`Player ${move.piece.player} wins!`);
-          disableAllMoves();
-        } else {
-          currentPlayer = 1;
-          updateTurnIndicator();
-          saveHistory();
-          // If next turn is engine controlled, start its move automatically.
-          if (!isCurrentPlayerHuman()) {
-            setTimeout(startBotTurn, 500);
-          }
-        }
-      });
     }
+  });
+}
+
 
     /********************************************************************
      * WIN CHECK / DISABLE
