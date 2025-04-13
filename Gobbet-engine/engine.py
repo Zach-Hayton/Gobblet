@@ -197,8 +197,8 @@ def evaluate(engine):
     #  - mobility
     #  - potential lines
     board = engine.board
-    rows = len(board)
-    cols = len(board[0])
+    rows = 4
+    cols = 4
 
     # Top-grid: who owns each top
     top_grid = [[0]*cols for _ in range(rows)]
@@ -206,8 +206,8 @@ def evaluate(engine):
     for r in range(rows):
         for c in range(cols):
             if board[r][c]:
-                top_grid[r][c] = board[r][c][-1]['player']
-                top_size[r][c] = board[r][c][-1]['size']
+                top_grid[r][c] = board[r][c][0]['player']
+                top_size[r][c] = board[r][c][0]['size']
             else:
                 top_grid[r][c] = 0
                 top_size[r][c] = 0
@@ -247,20 +247,65 @@ def evaluate(engine):
     all_lines.append([(0,0),(1,1),(2,2),(3,3)])
     all_lines.append([(0,3),(1,2),(2,1),(3,0)])
 
+    #looking at
     for line in all_lines:
         owners = [top_grid[r][c] for (r,c) in line]
-        # "If no opponent piece is on top, but at least one current_player piece is, it's potentially ours"
-        if opponent not in owners and any(p == current_player for p in owners):
-            lines_for_current += 1
-        # Conversely for the opponent
-        if current_player not in owners and any(p == opponent for p in owners):
-            lines_for_opponent += 1
 
-    line_factor = (lines_for_current - lines_for_opponent) * 2
+        count = 0
+        for i in range(len(line)):
+            if owners[i] == current_player:
+                count += 1
+            #the dividing factor divides the score by 2 if the opponents pieces are also on the line
+        dividing_factor = 2
+        if current_player not in owners:
+            dividing_factor = 1
+        if count != 0:
+            #the score is exponential because the more pieces on a line, the more powerful it is
+            lines_for_current += (2**count)//dividing_factor
+
+        #count up all the opponents pieces on winning lines
+        count = 0
+        for i in range(len(line)):
+            if owners[i] == opponent:
+                count += 1
+            dividing_factor = 2
+            if current_player not in owners:
+                dividing_factor = 1
+            if count != 0:
+                lines_for_opponent += (2**count)//dividing_factor
+
+        else:
+            continue
+
+
+
+    line_factor = lines_for_current - lines_for_opponent
+
+    #diagonal points and center points should have more weight
+    prime_spots = []
+    prime_spots.append((0,0))
+    prime_spots.append((3,0))
+    prime_spots.append((0,3))
+    prime_spots.append((3,3))
+    prime_spots.append((1,1))
+    prime_spots.append((2,1))
+    prime_spots.append((1,2))
+    prime_spots.append((2,2))
+    prime_counter_curr = 0
+    prime_counter_opponent = 0
+
+    for r in range(rows):
+        for c in range(cols):
+            if top_grid[r][c] == current_player and prime_spots.__contains__((r,c)):
+                prime_counter_curr += 1
+            if top_grid[r][c] == opponent and prime_spots.__contains__((r,c)):
+                prime_counter_opponent += 1
+
+    prime_spots_factor = prime_counter_curr - prime_counter_opponent
+
 
     # Combine factors
-    # Tune these multipliers to your taste
-    score = (5 * size_factor) + (3 * mobility_factor) + (3 * line_factor)
+    score = (5 * size_factor) + (1 * mobility_factor) + (5 * line_factor) + (2 * prime_spots_factor)
 
     return score
 
@@ -447,3 +492,32 @@ if __name__ == '__main__':
     supply2 = create_supply(2)
 
     engine = GobbletEngine(board, supply1, supply2, current_player=1)
+
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+    move = get_move(engine, 5)
+    print(move)
+    engine = engine.apply_move(move)
+
