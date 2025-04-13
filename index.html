@@ -7,7 +7,6 @@
   <!-- Google Font -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    /* ... (existing CSS remains unchanged) ... */
     :root {
       --player1-color: #e74c3c;
       --player2-color: #3498db;
@@ -107,19 +106,27 @@
       position: relative;
     }
     .size1 {
-      width: 25px; height: 25px; font-size: 0.7em;
+      width: 25px;
+      height: 25px;
+      font-size: 0.7em;
       filter: brightness(100%);
     }
     .size2 {
-      width: 35px; height: 35px; font-size: 0.8em;
+      width: 35px;
+      height: 35px;
+      font-size: 0.8em;
       filter: brightness(90%);
     }
     .size3 {
-      width: 45px; height: 45px; font-size: 0.9em;
+      width: 45px;
+      height: 45px;
+      font-size: 0.9em;
       filter: brightness(80%);
     }
     .size4 {
-      width: 55px; height: 55px; font-size: 1em;
+      width: 55px;
+      height: 55px;
+      font-size: 1em;
       filter: brightness(70%);
     }
     .player1 { background: var(--player1-color); }
@@ -176,7 +183,6 @@
     <button id="play-music-btn">Play Music</button>
     <button id="pause-music-btn">Pause Music</button>
     <br>
-    <!-- Existing color combo dropdown -->
     <label for="color-pair-select" style="color:#fff;">Color Combo:</label>
     <select id="color-pair-select">
       <option value="default">Default (Red & Blue)</option>
@@ -186,7 +192,7 @@
       <option value="cyan-magenta">Cyan & Magenta</option>
     </select>
     <br><br>
-    <!-- New Controls for Game Mode and Engine Selection -->
+    <!-- Game mode controls -->
     <label for="game-mode-select" style="color:#fff;">Game Mode:</label>
     <select id="game-mode-select">
       <option value="humanVsEngine" selected>Human vs Engine</option>
@@ -194,15 +200,14 @@
     </select>
     <br>
     <label for="player1-engine-select" style="color:#fff;">Player 1 Engine:</label>
-<select id="player1-engine-select">
-  <option value="engine.py" selected>CHATGPT engine</option>
-</select>
-
-<label for="player2-engine-select" style="color:#fff;">Player 2 Engine:</label>
-<select id="player2-engine-select">
-  <option value="engine.py" selected>CHATGPT engine</option>
-</select>
-
+    <select id="player1-engine-select">
+      <option value="engine.py" selected>CHATGPT engine</option>
+    </select>
+    <br>
+    <label for="player2-engine-select" style="color:#fff;">Player 2 Engine:</label>
+    <select id="player2-engine-select">
+      <option value="engine.py" selected>CHATGPT engine</option>
+    </select>
   </div>
   <audio id="bg-music" src="assets/music/ambient.mp3" autoplay loop></audio>
 
@@ -215,7 +220,7 @@
     const COLS = 4;
     const player1Pieces = [];
     const player2Pieces = [];
-    let currentPlayer = 1;  // 1: Player1, 2: Player2
+    let currentPlayer = 1;  // 1: Player 1 (red), 2: Player 2 (blue)
     let selectedPiece = null;
     let selectedElement = null;
 
@@ -237,7 +242,7 @@
     const turnIndicatorEl = document.getElementById('turn-indicator');
     const colorPairSelect = document.getElementById('color-pair-select');
 
-    // New engine & game mode selectors
+    // Game mode & engine selectors
     const gameModeSelect = document.getElementById('game-mode-select');
     const player1EngineSelect = document.getElementById('player1-engine-select');
     const player2EngineSelect = document.getElementById('player2-engine-select');
@@ -254,11 +259,10 @@
       initGame();
     });
 
-    // (Optional: add event listeners on engine selectors if you want to restart the game when the engine file changes)
+    // Restart the game if an engine selection changes
     player1EngineSelect.addEventListener('change', initGame);
     player2EngineSelect.addEventListener('change', initGame);
 
-    // Mapping of available color pairs (unchanged)
     const colorPairs = {
       "default": { player1: "#e74c3c", player2: "#3498db" },
       "red-green": { player1: "#e74c3c", player2: "#2ecc71" },
@@ -272,6 +276,7 @@
       document.documentElement.style.setProperty('--player1-color', pair.player1);
       document.documentElement.style.setProperty('--player2-color', pair.player2);
     }
+
     colorPairSelect.addEventListener('change', (e) => {
       updatePlayerColors(e.target.value);
     });
@@ -307,6 +312,7 @@
           else player2Pieces.push(piece);
         }
       }
+
       [1,2,3,4].forEach(sz => {
         addPiecesForPlayer(1, sz);
         addPiecesForPlayer(2, sz);
@@ -324,11 +330,9 @@
       renderBoard();
       renderSupplies();
       updateTurnIndicator();
-
-      // Save initial state
       saveHistory();
 
-      // Auto-start the turn if the current player is engine controlled
+      // If the current player is engine controlled, start its move after a short delay.
       if (!isCurrentPlayerHuman()) {
         setTimeout(startBotTurn, 500);
       }
@@ -341,7 +345,6 @@
           const squareDiv = document.createElement('div');
           squareDiv.classList.add('square');
           squareDiv.id = `square-${r}-${c}`;
-          // Only attach manual click if current turn is human
           squareDiv.onclick = (event) => {
             if (isCurrentPlayerHuman()) {
               handleSquareClick(r, c, event);
@@ -363,24 +366,26 @@
       }
     }
 
+    // In this revised render, we attach the click handler to the human player's supply pieces
     function renderSupplies() {
       player1SupplyEl.innerHTML = '';
       player2SupplyEl.innerHTML = '';
 
-      // Only attach click events to the supply pieces if it belongs to the human whose turn it is.
+      // Always add click for player1 supply if controlled by a human.
       player1Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          if (piece.player === currentPlayer && isCurrentPlayerHuman()) {
+          if (player1IsHuman) {
             div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
           }
           player1SupplyEl.appendChild(div);
         }
       });
+      // For player2 supply, attach click only if human (which in human vs engine is false)
       player2Pieces.forEach(piece => {
         if (!piece.used) {
           const div = createPieceDiv(piece);
-          if (piece.player === currentPlayer && isCurrentPlayerHuman()) {
+          if (player2IsHuman) {
             div.onclick = (event) => pickUpFromSupply(piece, event.currentTarget);
           }
           player2SupplyEl.appendChild(div);
@@ -388,7 +393,6 @@
       });
     }
 
-    // Creates a visual representation of a game piece.
     function createPieceDiv(piece) {
       const div = document.createElement('div');
       div.classList.add('piece', `player${piece.player}`, `size${piece.size}`);
@@ -413,7 +417,7 @@
       }
     }
 
-    // Helper: returns true if the current turn is human controlled
+    // Helper: Check if the current player is human
     function isCurrentPlayerHuman() {
       return currentPlayer === 1 ? player1IsHuman : player2IsHuman;
     }
@@ -422,7 +426,6 @@
      * HUMAN MOVES
      ********************************************************************/
     function pickUpFromSupply(piece, pieceEl) {
-      // Only allow manual action if the current player is human.
       if (!isCurrentPlayerHuman()) return;
       if (piece.player !== currentPlayer) {
         alert(`It's Player ${currentPlayer}'s turn, not yours!`);
@@ -442,9 +445,7 @@
     }
 
     function handleSquareClick(r, c, evt) {
-      // Only allow manual moves for human-controlled turns.
       if (!isCurrentPlayerHuman()) return;
-
       const squareDiv = evt.currentTarget;
       let stack = board[r][c];
 
@@ -471,6 +472,7 @@
         renderBoard();
         return;
       }
+
       if (stack.length > 0) {
         const topPiece = stack[stack.length - 1];
         if (selectedPiece.size <= topPiece.size) {
@@ -499,7 +501,6 @@
           currentPlayer = (currentPlayer === 1 ? 2 : 1);
           updateTurnIndicator();
           saveHistory();
-          // If the new current player is engine controlled, trigger their move automatically.
           if (!isCurrentPlayerHuman()) {
             setTimeout(startBotTurn, 500);
           }
@@ -520,11 +521,9 @@
     /********************************************************************
      * BOT/ENGINE MOVES
      ********************************************************************/
-    // The botWorker is used to compute engine moves.
     let botWorker = new Worker("botWorker.js");
 
     function startBotTurn() {
-      // Only trigger the engine if the current player is not human.
       if (isCurrentPlayerHuman()) return;
       const engineFile = currentPlayer === 1 ? player1EngineSelect.value : player2EngineSelect.value;
       const state = {
@@ -533,7 +532,6 @@
         supply2: player2Pieces,
         currentPlayer: currentPlayer
       };
-      // Send engineFile along with state and timeLimit for the bot computation.
       botWorker.postMessage({ state: state, timeLimit: 10, engineFile: engineFile });
       botWorker.onmessage = function(e) {
         const { move, error } = e.data;
@@ -548,39 +546,37 @@
     }
 
     function applyBotMove(move) {
-  if (move.type === "supply") {
-    const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
-    const p = supply.find(p => p.id === move.piece.id);
-    if (p) p.used = true;
-  } else if (move.type === "board") {
-    let stack = board[move.from[0]][move.from[1]];
-    if (stack.length > 0) stack.pop();
-  }
-  board[move.to[0]][move.to[1]].push({
-    player: move.piece.player,
-    size: move.piece.size,
-    id: move.piece.id
-  });
-
-  renderBoard();
-  renderSupplies();
-
-  window.requestAnimationFrame(() => {
-    if (checkWin(move.piece.player)) {
-      alert(`Player ${move.piece.player} wins!`);
-      disableAllMoves();
-    } else {
-      // Toggle the current player instead of always setting it to 1
-      currentPlayer = (currentPlayer === 1 ? 2 : 1);
-      updateTurnIndicator();
-      saveHistory();
-      if (!isCurrentPlayerHuman()) {
-        setTimeout(startBotTurn, 500);
+      if (move.type === "supply") {
+        const supply = move.piece.player === 1 ? player1Pieces : player2Pieces;
+        const p = supply.find(p => p.id === move.piece.id);
+        if (p) p.used = true;
+      } else if (move.type === "board") {
+        let stack = board[move.from[0]][move.from[1]];
+        if (stack.length > 0) stack.pop();
       }
-    }
-  });
-}
+      board[move.to[0]][move.to[1]].push({
+        player: move.piece.player,
+        size: move.piece.size,
+        id: move.piece.id
+      });
 
+      renderBoard();
+      renderSupplies();
+
+      window.requestAnimationFrame(() => {
+        if (checkWin(move.piece.player)) {
+          alert(`Player ${move.piece.player} wins!`);
+          disableAllMoves();
+        } else {
+          currentPlayer = (currentPlayer === 1 ? 2 : 1);
+          updateTurnIndicator();
+          saveHistory();
+          if (!isCurrentPlayerHuman()) {
+            setTimeout(startBotTurn, 500);
+          }
+        }
+      });
+    }
 
     /********************************************************************
      * WIN CHECK / DISABLE
@@ -633,6 +629,7 @@
       };
       historyStack.push(stateObj);
     }
+
     function undoLastMove() {
       if (historyStack.length <= 1) {
         alert("No moves to undo!");
